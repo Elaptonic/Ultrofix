@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -11,11 +12,17 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  useGetService,
+  useListProviders,
+  useCreateBooking,
+  getListBookingsQueryKey,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 
-import { PROVIDERS, SERVICES } from "@/constants/data";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
-import { Booking } from "@/constants/data";
+import { USER_ID } from "@/constants/user";
 
 const TIME_SLOTS = [
   "08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM",
@@ -43,14 +50,42 @@ export default function BookingScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { addBooking, selectedAddress } = useApp();
+  const { selectedAddress } = useApp();
+  const queryClient = useQueryClient();
 
-  const service = SERVICES.find((s) => s.id === id);
-  const provider = PROVIDERS.find((p) => p.id === providerId) ?? PROVIDERS[0];
+  const serviceId = parseInt(id ?? "0", 10);
+  const providerIdNum = parseInt(providerId ?? "0", 10);
+
+  const { data: service, isLoading: serviceLoading } = useGetService(serviceId, {
+    query: { enabled: !!serviceId },
+  });
+  const { data: providers } = useListProviders(
+    { category: service?.category },
+    { query: { enabled: !!service } }
+  );
+  const provider = providers?.find((p) => p.id === providerIdNum) ?? providers?.[0];
+
+  const createBooking = useCreateBooking({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: getListBookingsQueryKey({ userId: USER_ID }),
+        });
+      },
+    },
+  });
 
   const [selectedDate, setSelectedDate] = useState<string>(DATES[0].value);
   const [selectedTime, setSelectedTime] = useState<string>(TIME_SLOTS[2]);
   const [confirmed, setConfirmed] = useState(false);
+
+  if (serviceLoading) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator color={colors.primary} size="large" />
+      </View>
+    );
+  }
 
   if (!service) {
     return (
@@ -60,22 +95,25 @@ export default function BookingScreen() {
     );
   }
 
-  const handleConfirm = () => {
-    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const booking: Booking = {
-      id: `b${Date.now()}`,
-      serviceId: service.id,
-      serviceName: service.name,
-      providerName: provider.name,
-      providerAvatar: provider.avatar,
-      date: selectedDate,
-      time: selectedTime,
-      status: "upcoming",
-      price: service.startingPrice,
-      address: selectedAddress,
-    };
-    addBooking(booking);
-    setConfirmed(true);
+  const handleConfirm = async () => {
+    if (!provider) return;
+    if (Platform.OS !== "web")
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    createBooking.mutate(
+      {
+        data: {
+          userId: USER_ID,
+          serviceId: service.id,
+          providerId: provider.id,
+          date: selectedDate,
+          time: selectedTime,
+          address: selectedAddress,
+          price: service.startingPrice,
+        },
+      },
+      { onSuccess: () => setConfirmed(true) }
+    );
   };
 
   if (confirmed) {
@@ -89,13 +127,18 @@ export default function BookingScreen() {
             Booking Confirmed!
           </Text>
           <Text style={[styles.successSubtitle, { color: colors.mutedForeground }]}>
-            Your booking for {service.name} has been confirmed with {provider.name}.
+            Your booking for {service.name} has been confirmed
+            {provider ? ` with ${provider.name}` : ""}.
           </Text>
           <View style={[styles.successDetails, { backgroundColor: colors.muted, borderRadius: 12, padding: 16, gap: 10 }]}>
             <View style={styles.successRow}>
               <Feather name="calendar" size={15} color={colors.mutedForeground} />
               <Text style={[styles.successRowText, { color: colors.foreground }]}>
-                {new Date(selectedDate).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
+                {new Date(selectedDate).toLocaleDateString("en-IN", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                })}
               </Text>
             </View>
             <View style={styles.successRow}>
@@ -106,7 +149,10 @@ export default function BookingScreen() {
             </View>
             <View style={styles.successRow}>
               <Feather name="map-pin" size={15} color={colors.mutedForeground} />
-              <Text style={[styles.successRowText, { color: colors.foreground }]} numberOfLines={2}>
+              <Text
+                style={[styles.successRowText, { color: colors.foreground }]}
+                numberOfLines={2}
+              >
                 {selectedAddress}
               </Text>
             </View>
@@ -125,13 +171,8 @@ export default function BookingScreen() {
             <Text style={styles.successBtnText}>View My Bookings</Text>
           </Pressable>
           <Pressable
-            onPress={() => {
-              router.dismissAll();
-            }}
-            style={({ pressed }) => [
-              styles.homeBtn,
-              pressed && { opacity: 0.7 },
-            ]}
+            onPress={() => router.dismissAll()}
+            style={({ pressed }) => [styles.homeBtn, pressed && { opacity: 0.7 }]}
           >
             <Text style={[styles.homeBtnText, { color: colors.mutedForeground }]}>
               Go to Home
@@ -157,9 +198,7 @@ export default function BookingScreen() {
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>
-          Book Service
-        </Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Book Service</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -167,9 +206,7 @@ export default function BookingScreen() {
         style={styles.scroll}
         contentContainerStyle={[
           styles.scrollContent,
-          {
-            paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 100,
-          },
+          { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 100 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -181,9 +218,11 @@ export default function BookingScreen() {
             <Text style={[styles.serviceName, { color: colors.foreground }]}>
               {service.name}
             </Text>
-            <Text style={[styles.serviceProvider, { color: colors.mutedForeground }]}>
-              with {provider.name}
-            </Text>
+            {provider && (
+              <Text style={[styles.serviceProvider, { color: colors.mutedForeground }]}>
+                with {provider.name}
+              </Text>
+            )}
           </View>
           <Text style={[styles.servicePrice, { color: colors.primary }]}>
             ₹{service.startingPrice}
@@ -191,14 +230,8 @@ export default function BookingScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-            Select Date
-          </Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.dateList}
-          >
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Select Date</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateList}>
             {DATES.map((date) => (
               <Pressable
                 key={date.value}
@@ -206,32 +239,15 @@ export default function BookingScreen() {
                 style={[
                   styles.dateItem,
                   {
-                    backgroundColor:
-                      selectedDate === date.value ? colors.primary : colors.card,
-                    borderColor:
-                      selectedDate === date.value ? colors.primary : colors.border,
+                    backgroundColor: selectedDate === date.value ? colors.primary : colors.card,
+                    borderColor: selectedDate === date.value ? colors.primary : colors.border,
                   },
                 ]}
               >
-                <Text
-                  style={[
-                    styles.dateDay,
-                    {
-                      color:
-                        selectedDate === date.value ? "rgba(255,255,255,0.8)" : colors.mutedForeground,
-                    },
-                  ]}
-                >
+                <Text style={[styles.dateDay, { color: selectedDate === date.value ? "rgba(255,255,255,0.8)" : colors.mutedForeground }]}>
                   {date.day}
                 </Text>
-                <Text
-                  style={[
-                    styles.dateNum,
-                    {
-                      color: selectedDate === date.value ? "#fff" : colors.foreground,
-                    },
-                  ]}
-                >
+                <Text style={[styles.dateNum, { color: selectedDate === date.value ? "#fff" : colors.foreground }]}>
                   {date.label}
                 </Text>
               </Pressable>
@@ -240,9 +256,7 @@ export default function BookingScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-            Select Time
-          </Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Select Time</Text>
           <View style={styles.timeGrid}>
             {TIME_SLOTS.map((slot) => (
               <Pressable
@@ -251,21 +265,12 @@ export default function BookingScreen() {
                 style={[
                   styles.timeSlot,
                   {
-                    backgroundColor:
-                      selectedTime === slot ? colors.primary : colors.card,
-                    borderColor:
-                      selectedTime === slot ? colors.primary : colors.border,
+                    backgroundColor: selectedTime === slot ? colors.primary : colors.card,
+                    borderColor: selectedTime === slot ? colors.primary : colors.border,
                   },
                 ]}
               >
-                <Text
-                  style={[
-                    styles.timeText,
-                    {
-                      color: selectedTime === slot ? "#fff" : colors.foreground,
-                    },
-                  ]}
-                >
+                <Text style={[styles.timeText, { color: selectedTime === slot ? "#fff" : colors.foreground }]}>
                   {slot}
                 </Text>
               </Pressable>
@@ -274,52 +279,31 @@ export default function BookingScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-            Service Address
-          </Text>
-          <View
-            style={[
-              styles.addressCard,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-          >
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Service Address</Text>
+          <View style={[styles.addressCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Feather name="map-pin" size={18} color={colors.primary} />
             <Text style={[styles.addressText, { color: colors.foreground }]}>
               {selectedAddress}
             </Text>
             <Pressable onPress={() => router.push("/address")}>
-              <Text style={[styles.changeText, { color: colors.primary }]}>
-                Change
-              </Text>
+              <Text style={[styles.changeText, { color: colors.primary }]}>Change</Text>
             </Pressable>
           </View>
         </View>
 
         <View style={[styles.summary, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.summaryTitle, { color: colors.foreground }]}>
-            Order Summary
-          </Text>
+          <Text style={[styles.summaryTitle, { color: colors.foreground }]}>Order Summary</Text>
           <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>
-              Service charge
-            </Text>
-            <Text style={[styles.summaryValue, { color: colors.foreground }]}>
-              ₹{service.startingPrice}
-            </Text>
+            <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Service charge</Text>
+            <Text style={[styles.summaryValue, { color: colors.foreground }]}>₹{service.startingPrice}</Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>
-              Platform fee
-            </Text>
-            <Text style={[styles.summaryValue, { color: colors.foreground }]}>
-              ₹29
-            </Text>
+            <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Platform fee</Text>
+            <Text style={[styles.summaryValue, { color: colors.foreground }]}>₹29</Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
           <View style={styles.summaryRow}>
-            <Text style={[styles.summaryTotal, { color: colors.foreground }]}>
-              Total
-            </Text>
+            <Text style={[styles.summaryTotal, { color: colors.foreground }]}>Total</Text>
             <Text style={[styles.summaryTotalValue, { color: colors.primary }]}>
               ₹{service.startingPrice + 29}
             </Text>
@@ -339,14 +323,23 @@ export default function BookingScreen() {
       >
         <Pressable
           onPress={handleConfirm}
+          disabled={createBooking.isPending}
           style={({ pressed }) => [
             styles.confirmBtn,
             { backgroundColor: colors.primary },
-            pressed && { opacity: 0.85 },
+            (pressed || createBooking.isPending) && { opacity: 0.75 },
           ]}
         >
-          <Text style={styles.confirmBtnText}>Confirm Booking · ₹{service.startingPrice + 29}</Text>
-          <Feather name="check" size={18} color="#fff" />
+          {createBooking.isPending ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <>
+              <Text style={styles.confirmBtnText}>
+                Confirm Booking · ₹{service.startingPrice + 29}
+              </Text>
+              <Feather name="check" size={18} color="#fff" />
+            </>
+          )}
         </Pressable>
       </View>
     </View>
@@ -354,14 +347,8 @@ export default function BookingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  container: { flex: 1 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -370,26 +357,11 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     borderBottomWidth: 1,
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontFamily: "Inter_600SemiBold",
-  },
-  placeholder: {
-    width: 40,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-    gap: 20,
-  },
+  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  placeholder: { width: 40 },
+  scroll: { flex: 1 },
+  scrollContent: { padding: 20, gap: 20 },
   serviceInfo: {
     flexDirection: "row",
     alignItems: "center",
@@ -405,31 +377,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  serviceDetails: {
-    flex: 1,
-  },
-  serviceName: {
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-  },
-  serviceProvider: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  servicePrice: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-  },
-  section: {
-    gap: 12,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontFamily: "Inter_700Bold",
-  },
-  dateList: {
-    gap: 10,
-  },
+  serviceDetails: { flex: 1 },
+  serviceName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  serviceProvider: { fontSize: 13, marginTop: 2 },
+  servicePrice: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  section: { gap: 12 },
+  sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  dateList: { gap: 10 },
   dateItem: {
     width: 56,
     paddingVertical: 12,
@@ -438,29 +392,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
   },
-  dateDay: {
-    fontSize: 11,
-    fontFamily: "Inter_500Medium",
-  },
-  dateNum: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-  },
-  timeGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  timeSlot: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    borderWidth: 1.5,
-  },
-  timeText: {
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-  },
+  dateDay: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  dateNum: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  timeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  timeSlot: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1.5 },
+  timeText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   addressCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -469,53 +405,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 10,
   },
-  addressText: {
-    flex: 1,
-    fontSize: 14,
-  },
-  changeText: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
-  },
-  summary: {
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    gap: 10,
-  },
-  summaryTitle: {
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-    marginBottom: 4,
-  },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  summaryLabel: {
-    fontSize: 14,
-  },
-  summaryValue: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-  },
-  summaryDivider: {
-    height: 1,
-    marginVertical: 4,
-  },
-  summaryTotal: {
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-  },
-  summaryTotalValue: {
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-  },
-  footer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-  },
+  addressText: { flex: 1, fontSize: 14 },
+  changeText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  summary: { padding: 16, borderRadius: 14, borderWidth: 1, gap: 10 },
+  summaryTitle: { fontSize: 16, fontFamily: "Inter_700Bold", marginBottom: 4 },
+  summaryRow: { flexDirection: "row", justifyContent: "space-between" },
+  summaryLabel: { fontSize: 14 },
+  summaryValue: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  summaryDivider: { height: 1, marginVertical: 4 },
+  summaryTotal: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  summaryTotalValue: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  footer: { paddingHorizontal: 20, paddingTop: 16, borderTopWidth: 1 },
   confirmBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -524,69 +424,17 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 14,
   },
-  confirmBtnText: {
-    color: "#fff",
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-  },
-  successContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
-  successCard: {
-    width: "100%",
-    borderRadius: 24,
-    borderWidth: 1,
-    padding: 28,
-    alignItems: "center",
-    gap: 16,
-  },
-  successIcon: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  successTitle: {
-    fontSize: 24,
-    fontFamily: "Inter_700Bold",
-    textAlign: "center",
-  },
-  successSubtitle: {
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  successDetails: {
-    width: "100%",
-  },
-  successRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  successRowText: {
-    fontSize: 14,
-    flex: 1,
-  },
-  successBtn: {
-    width: "100%",
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: "center",
-  },
-  successBtnText: {
-    color: "#fff",
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-  },
-  homeBtn: {
-    paddingVertical: 8,
-  },
-  homeBtnText: {
-    fontSize: 14,
-  },
+  confirmBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  successContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  successCard: { width: "100%", borderRadius: 24, borderWidth: 1, padding: 28, alignItems: "center", gap: 16 },
+  successIcon: { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center" },
+  successTitle: { fontSize: 24, fontFamily: "Inter_700Bold", textAlign: "center" },
+  successSubtitle: { fontSize: 14, textAlign: "center", lineHeight: 22 },
+  successDetails: { width: "100%" },
+  successRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  successRowText: { fontSize: 14, flex: 1 },
+  successBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center" },
+  successBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  homeBtn: { paddingVertical: 8 },
+  homeBtnText: { fontSize: 14 },
 });

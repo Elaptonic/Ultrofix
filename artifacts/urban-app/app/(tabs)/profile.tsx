@@ -1,8 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -12,25 +12,62 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  useGetProfile,
+  useUpsertProfile,
+  useListBookings,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 
-import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { USER_ID } from "@/constants/user";
 
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { userName, userEmail, userPhone, updateProfile, bookings } = useApp();
+  const queryClient = useQueryClient();
+
+  const { data: profile, isLoading: profileLoading } = useGetProfile(USER_ID);
+  const { data: bookings } = useListBookings({ userId: USER_ID });
+  const upsertProfile = useUpsertProfile();
+
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(userName);
-  const [email, setEmail] = useState(userEmail);
-  const [phone, setPhone] = useState(userPhone);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
 
-  const completedBookings = bookings.filter((b) => b.status === "completed").length;
+  useEffect(() => {
+    if (profile) {
+      setName(profile.name);
+      setEmail(profile.email);
+      setPhone(profile.phone);
+    }
+  }, [profile]);
 
-  const handleSave = async () => {
-    await updateProfile(name, email, phone);
-    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setEditing(false);
+  const completedBookings = (bookings ?? []).filter((b) => b.status === "completed").length;
+
+  const displayName = profile?.name ?? "Arjun Mehta";
+  const displayEmail = profile?.email ?? "arjun.mehta@gmail.com";
+  const displayPhone = profile?.phone ?? "+91 98765 43210";
+
+  const initials = displayName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const handleSave = () => {
+    upsertProfile.mutate(
+      { userId: USER_ID, data: { name, email, phone, address: profile?.address ?? "" } },
+      {
+        onSuccess: () => {
+          if (Platform.OS !== "web")
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setEditing(false);
+        },
+      }
+    );
   };
 
   const menuItems = [
@@ -49,56 +86,55 @@ export default function ProfileScreen() {
           styles.content,
           {
             paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) + 16,
-            paddingBottom:
-              insets.bottom + (Platform.OS === "web" ? 34 : 0) + 100,
+            paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 100,
           },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.profileCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={[styles.avatar, { backgroundColor: colors.primary + "22" }]}>
-            <Text style={[styles.avatarText, { color: colors.primary }]}>
-              {userName.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-            </Text>
-          </View>
-          <View style={styles.profileInfo}>
-            <Text style={[styles.profileName, { color: colors.foreground }]}>
-              {userName}
-            </Text>
-            <Text style={[styles.profileEmail, { color: colors.mutedForeground }]}>
-              {userEmail}
-            </Text>
-            <Text style={[styles.profilePhone, { color: colors.mutedForeground }]}>
-              {userPhone}
-            </Text>
-          </View>
-          <Pressable
-            onPress={() => setEditing(true)}
-            style={[styles.editBtn, { backgroundColor: colors.muted }]}
-          >
-            <Feather name="edit-2" size={16} color={colors.primary} />
-          </Pressable>
-        </View>
-
-        <View style={styles.statsRow}>
-          {[
-            { label: "Bookings", value: bookings.length },
-            { label: "Completed", value: completedBookings },
-            { label: "Saved", value: 0 },
-          ].map(({ label, value }) => (
-            <View
-              key={label}
-              style={[styles.statBox, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <Text style={[styles.statValue, { color: colors.primary }]}>
-                {value}
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
-                {label}
-              </Text>
+        {profileLoading ? (
+          <ActivityIndicator color={colors.primary} style={{ paddingTop: 40 }} />
+        ) : (
+          <>
+            <View style={[styles.profileCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.avatar, { backgroundColor: colors.primary + "22" }]}>
+                <Text style={[styles.avatarText, { color: colors.primary }]}>{initials}</Text>
+              </View>
+              <View style={styles.profileInfo}>
+                <Text style={[styles.profileName, { color: colors.foreground }]}>
+                  {displayName}
+                </Text>
+                <Text style={[styles.profileEmail, { color: colors.mutedForeground }]}>
+                  {displayEmail}
+                </Text>
+                <Text style={[styles.profilePhone, { color: colors.mutedForeground }]}>
+                  {displayPhone}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setEditing(true)}
+                style={[styles.editBtn, { backgroundColor: colors.muted }]}
+              >
+                <Feather name="edit-2" size={16} color={colors.primary} />
+              </Pressable>
             </View>
-          ))}
-        </View>
+
+            <View style={styles.statsRow}>
+              {[
+                { label: "Bookings", value: (bookings ?? []).length },
+                { label: "Completed", value: completedBookings },
+                { label: "Saved", value: 0 },
+              ].map(({ label, value }) => (
+                <View
+                  key={label}
+                  style={[styles.statBox, { backgroundColor: colors.card, borderColor: colors.border }]}
+                >
+                  <Text style={[styles.statValue, { color: colors.primary }]}>{value}</Text>
+                  <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{label}</Text>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
 
         <View style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {menuItems.map((item, idx) => (
@@ -106,19 +142,14 @@ export default function ProfileScreen() {
               key={item.label}
               style={({ pressed }) => [
                 styles.menuItem,
-                idx < menuItems.length - 1 && {
-                  borderBottomWidth: 1,
-                  borderBottomColor: colors.border,
-                },
+                idx < menuItems.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
                 pressed && { backgroundColor: colors.muted },
               ]}
             >
               <View style={[styles.menuIcon, { backgroundColor: colors.primary + "15" }]}>
                 <Feather name={item.icon as any} size={18} color={colors.primary} />
               </View>
-              <Text style={[styles.menuLabel, { color: colors.foreground }]}>
-                {item.label}
-              </Text>
+              <Text style={[styles.menuLabel, { color: colors.foreground }]}>{item.label}</Text>
               <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
             </Pressable>
           ))}
@@ -132,9 +163,7 @@ export default function ProfileScreen() {
           ]}
         >
           <Feather name="log-out" size={18} color={colors.destructive} />
-          <Text style={[styles.logoutText, { color: colors.destructive }]}>
-            Log Out
-          </Text>
+          <Text style={[styles.logoutText, { color: colors.destructive }]}>Log Out</Text>
         </Pressable>
       </ScrollView>
 
@@ -150,32 +179,24 @@ export default function ProfileScreen() {
           ]}
         >
           <View style={styles.editHeader}>
-            <Text style={[styles.editTitle, { color: colors.foreground }]}>
-              Edit Profile
-            </Text>
+            <Text style={[styles.editTitle, { color: colors.foreground }]}>Edit Profile</Text>
             <Pressable onPress={() => setEditing(false)}>
               <Feather name="x" size={22} color={colors.mutedForeground} />
             </Pressable>
           </View>
           {[
-            { label: "Name", value: name, onChangeText: setName },
-            { label: "Email", value: email, onChangeText: setEmail },
-            { label: "Phone", value: phone, onChangeText: setPhone },
-          ].map(({ label, value, onChangeText }) => (
+            { label: "Name", value: name, setter: setName },
+            { label: "Email", value: email, setter: setEmail },
+            { label: "Phone", value: phone, setter: setPhone },
+          ].map(({ label, value, setter }) => (
             <View key={label} style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>
-                {label}
-              </Text>
+              <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>{label}</Text>
               <TextInput
                 value={value}
-                onChangeText={onChangeText}
+                onChangeText={setter}
                 style={[
                   styles.input,
-                  {
-                    backgroundColor: colors.muted,
-                    color: colors.foreground,
-                    borderColor: colors.border,
-                  },
+                  { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border },
                 ]}
                 placeholderTextColor={colors.mutedForeground}
               />
@@ -183,13 +204,18 @@ export default function ProfileScreen() {
           ))}
           <Pressable
             onPress={handleSave}
+            disabled={upsertProfile.isPending}
             style={({ pressed }) => [
               styles.saveBtn,
               { backgroundColor: colors.primary },
-              pressed && { opacity: 0.85 },
+              (pressed || upsertProfile.isPending) && { opacity: 0.75 },
             ]}
           >
-            <Text style={styles.saveBtnText}>Save Changes</Text>
+            {upsertProfile.isPending ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.saveBtnText}>Save Changes</Text>
+            )}
           </Pressable>
         </View>
       )}
@@ -198,13 +224,8 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    padding: 20,
-    gap: 16,
-  },
+  container: { flex: 1 },
+  content: { padding: 20, gap: 16 },
   profileCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -213,81 +234,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 14,
   },
-  avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: {
-    fontSize: 20,
-    fontFamily: "Inter_700Bold",
-  },
-  profileInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  profileName: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-  },
-  profileEmail: {
-    fontSize: 13,
-  },
-  profilePhone: {
-    fontSize: 13,
-  },
-  editBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statsRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  statBox: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    gap: 4,
-  },
-  statValue: {
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
-  },
-  statLabel: {
-    fontSize: 12,
-  },
-  menuCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    gap: 14,
-  },
-  menuIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  menuLabel: {
-    flex: 1,
-    fontSize: 15,
-    fontFamily: "Inter_500Medium",
-  },
+  avatar: { width: 60, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center" },
+  avatarText: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  profileInfo: { flex: 1, gap: 2 },
+  profileName: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  profileEmail: { fontSize: 13 },
+  profilePhone: { fontSize: 13 },
+  editBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  statsRow: { flexDirection: "row", gap: 10 },
+  statBox: { flex: 1, alignItems: "center", paddingVertical: 16, borderRadius: 14, borderWidth: 1, gap: 4 },
+  statValue: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  statLabel: { fontSize: 12 },
+  menuCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  menuItem: { flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingHorizontal: 16, gap: 14 },
+  menuIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  menuLabel: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
   logoutBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -297,10 +258,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
   },
-  logoutText: {
-    fontSize: 15,
-    fontFamily: "Inter_500Medium",
-  },
+  logoutText: { fontSize: 15, fontFamily: "Inter_500Medium" },
   editSheet: {
     position: "absolute",
     bottom: 0,
@@ -317,22 +275,10 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 10,
   },
-  editHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  editTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-  },
-  inputGroup: {
-    gap: 6,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-  },
+  editHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  editTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  inputGroup: { gap: 6 },
+  inputLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
   input: {
     borderRadius: 10,
     borderWidth: 1,
@@ -341,15 +287,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Inter_400Regular",
   },
-  saveBtn: {
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 4,
-  },
-  saveBtnText: {
-    color: "#fff",
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-  },
+  saveBtn: { paddingVertical: 14, borderRadius: 12, alignItems: "center", marginTop: 4 },
+  saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
 });

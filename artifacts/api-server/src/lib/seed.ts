@@ -1,0 +1,205 @@
+import { db, servicesTable, providersTable, bookingsTable } from "@workspace/db";
+import { logger } from "./logger";
+
+const SERVICES = [
+  {
+    slug: "home-deep-cleaning",
+    name: "Home Deep Cleaning",
+    category: "cleaning",
+    description: "Complete deep cleaning of your home including kitchen, bathrooms, bedrooms and living areas. Our trained professionals use eco-friendly products.",
+    startingPrice: 999,
+    rating: 4.8,
+    reviewCount: 2847,
+    duration: "3-4 hours",
+    imageKey: "cleaning",
+    popular: true,
+  },
+  {
+    slug: "bathroom-cleaning",
+    name: "Bathroom Cleaning",
+    category: "cleaning",
+    description: "Deep cleaning and sanitization of bathrooms. Includes scrubbing tiles, cleaning fixtures and sanitizing all surfaces.",
+    startingPrice: 299,
+    rating: 4.7,
+    reviewCount: 1923,
+    duration: "1-2 hours",
+    imageKey: "cleaning",
+    popular: false,
+  },
+  {
+    slug: "pipe-leak-repair",
+    name: "Pipe Leak Repair",
+    category: "plumbing",
+    description: "Expert diagnosis and repair of pipe leaks. We fix dripping taps, leaking pipes and damaged fittings.",
+    startingPrice: 399,
+    rating: 4.9,
+    reviewCount: 1245,
+    duration: "1-2 hours",
+    imageKey: "plumbing",
+    popular: true,
+  },
+  {
+    slug: "blocked-drain-cleaning",
+    name: "Blocked Drain Cleaning",
+    category: "plumbing",
+    description: "Professional unblocking of kitchen, bathroom or outdoor drains using advanced equipment.",
+    startingPrice: 499,
+    rating: 4.6,
+    reviewCount: 876,
+    duration: "1-3 hours",
+    imageKey: "plumbing",
+    popular: false,
+  },
+  {
+    slug: "electrical-wiring",
+    name: "Electrical Wiring",
+    category: "electrical",
+    description: "Safe and certified electrical wiring for new rooms, renovations or replacement of faulty wiring.",
+    startingPrice: 799,
+    rating: 4.8,
+    reviewCount: 543,
+    duration: "2-4 hours",
+    imageKey: "electrical",
+    popular: false,
+  },
+  {
+    slug: "fan-installation",
+    name: "Fan Installation",
+    category: "electrical",
+    description: "Professional installation of ceiling fans, wall fans and exhaust fans with proper wiring.",
+    startingPrice: 299,
+    rating: 4.9,
+    reviewCount: 3201,
+    duration: "30-60 min",
+    imageKey: "electrical",
+    popular: true,
+  },
+  {
+    slug: "womens-haircut",
+    name: "Women's Haircut",
+    category: "salon",
+    description: "Professional haircut and styling by certified beauticians at your home. Includes wash and blow dry.",
+    startingPrice: 449,
+    rating: 4.8,
+    reviewCount: 4532,
+    duration: "1-2 hours",
+    imageKey: "salon",
+    popular: true,
+  },
+  {
+    slug: "manicure-pedicure",
+    name: "Manicure & Pedicure",
+    category: "salon",
+    description: "Complete nail care service including filing, cuticle care, buffing and nail polish application.",
+    startingPrice: 599,
+    rating: 4.7,
+    reviewCount: 2198,
+    duration: "1.5 hours",
+    imageKey: "salon",
+    popular: false,
+  },
+  {
+    slug: "wall-painting",
+    name: "Wall Painting",
+    category: "painting",
+    description: "Professional interior wall painting with quality paints. Includes surface preparation and two coats.",
+    startingPrice: 1499,
+    rating: 4.6,
+    reviewCount: 891,
+    duration: "1-2 days",
+    imageKey: "painting",
+    popular: false,
+  },
+  {
+    slug: "cockroach-control",
+    name: "Cockroach Control",
+    category: "pest",
+    description: "Safe and effective cockroach extermination treatment. Child and pet safe gel-based treatment.",
+    startingPrice: 699,
+    rating: 4.7,
+    reviewCount: 1567,
+    duration: "1-2 hours",
+    imageKey: "pest",
+    popular: true,
+  },
+];
+
+const PROVIDERS = [
+  {
+    slug: "rahul-sharma",
+    name: "Rahul Sharma",
+    initials: "RS",
+    rating: 4.9,
+    reviewCount: 342,
+    jobsCompleted: 1256,
+    specializations: ["Deep Cleaning", "Office Cleaning", "Move-in Cleaning"],
+    experience: "5 years",
+    verified: true,
+    category: "cleaning",
+  },
+  {
+    slug: "priya-patel",
+    name: "Priya Patel",
+    initials: "PP",
+    rating: 4.8,
+    reviewCount: 289,
+    jobsCompleted: 987,
+    specializations: ["Haircut", "Facial", "Manicure"],
+    experience: "4 years",
+    verified: true,
+    category: "salon",
+  },
+  {
+    slug: "amit-kumar",
+    name: "Amit Kumar",
+    initials: "AK",
+    rating: 4.9,
+    reviewCount: 412,
+    jobsCompleted: 1589,
+    specializations: ["Pipe Repair", "Drain Cleaning", "Bathroom Fitting"],
+    experience: "7 years",
+    verified: true,
+    category: "plumbing",
+  },
+  {
+    slug: "sunita-devi",
+    name: "Sunita Devi",
+    initials: "SD",
+    rating: 4.7,
+    reviewCount: 178,
+    jobsCompleted: 634,
+    specializations: ["Home Cleaning", "Kitchen Deep Clean"],
+    experience: "3 years",
+    verified: true,
+    category: "cleaning",
+  },
+  {
+    slug: "vikram-singh",
+    name: "Vikram Singh",
+    initials: "VS",
+    rating: 4.8,
+    reviewCount: 267,
+    jobsCompleted: 892,
+    specializations: ["Wiring", "Fan Installation", "Switch Repair"],
+    experience: "6 years",
+    verified: true,
+    category: "electrical",
+  },
+];
+
+export async function seedDatabase() {
+  try {
+    const existingServices = await db.select().from(servicesTable).limit(1);
+    if (existingServices.length > 0) {
+      logger.info("Database already seeded, skipping");
+      return;
+    }
+
+    logger.info("Seeding database...");
+    await db.insert(servicesTable).values(SERVICES);
+    await db.insert(providersTable).values(PROVIDERS);
+    logger.info("Database seeded successfully");
+  } catch (err) {
+    logger.error({ err }, "Failed to seed database");
+  }
+}

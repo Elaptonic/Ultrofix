@@ -5,20 +5,24 @@ import { useRouter } from "expo-router";
 import React, { useRef } from "react";
 import {
   Animated,
+  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  useListServices,
+  useListProviders,
+} from "@workspace/api-client-react";
 
 import { CategoryCard } from "@/components/CategoryCard";
 import { ProviderCard } from "@/components/ProviderCard";
 import { ServiceCard } from "@/components/ServiceCard";
-import { CATEGORIES, PROVIDERS, SERVICES } from "@/constants/data";
+import { CATEGORIES } from "@/constants/data";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -26,12 +30,13 @@ export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { userName, selectedAddress } = useApp();
+  const { selectedAddress } = useApp();
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  const popularServices = SERVICES.filter((s) => s.popular);
-  const firstName = userName.split(" ")[0];
+  const { data: services, isLoading: servicesLoading } = useListServices();
+  const { data: providers, isLoading: providersLoading } = useListProviders();
 
+  const popularServices = services?.filter((s) => s.popular) ?? [];
   const headerOpacity = scrollY.interpolate({
     inputRange: [0, 60],
     outputRange: [1, 0.97],
@@ -73,12 +78,8 @@ export default function HomeScreen() {
               <View style={styles.notifDot} />
             </Pressable>
           </View>
-          <Text style={styles.greeting}>
-            Hello, {firstName}!
-          </Text>
-          <Text style={styles.subGreeting}>
-            What service do you need today?
-          </Text>
+          <Text style={styles.greeting}>Hello there!</Text>
+          <Text style={styles.subGreeting}>What service do you need today?</Text>
           <Pressable
             style={[styles.searchBar, { backgroundColor: "#fff" }]}
             onPress={() => router.push("/search")}
@@ -125,9 +126,7 @@ export default function HomeScreen() {
               Our Services
             </Text>
             <Pressable onPress={() => router.push("/all-categories")}>
-              <Text style={[styles.seeAll, { color: colors.primary }]}>
-                See all
-              </Text>
+              <Text style={[styles.seeAll, { color: colors.primary }]}>See all</Text>
             </Pressable>
           </View>
           <ScrollView
@@ -147,20 +146,22 @@ export default function HomeScreen() {
               Popular Services
             </Text>
             <Pressable onPress={() => router.push("/search")}>
-              <Text style={[styles.seeAll, { color: colors.primary }]}>
-                See all
-              </Text>
+              <Text style={[styles.seeAll, { color: colors.primary }]}>See all</Text>
             </Pressable>
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.serviceList}
-          >
-            {popularServices.map((service) => (
-              <ServiceCard key={service.id} {...service} />
-            ))}
-          </ScrollView>
+          {servicesLoading ? (
+            <ActivityIndicator color={colors.primary} style={{ paddingLeft: 20 }} />
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.serviceList}
+            >
+              {popularServices.map((service) => (
+                <ServiceCard key={service.id} {...service} image={service.imageKey} />
+              ))}
+            </ScrollView>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -168,21 +169,20 @@ export default function HomeScreen() {
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
               Top Professionals
             </Text>
-            <Pressable onPress={() => router.push("/providers")}>
-              <Text style={[styles.seeAll, { color: colors.primary }]}>
-                See all
-              </Text>
-            </Pressable>
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.providerList}
-          >
-            {PROVIDERS.map((provider) => (
-              <ProviderCard key={provider.id} provider={provider} />
-            ))}
-          </ScrollView>
+          {providersLoading ? (
+            <ActivityIndicator color={colors.primary} style={{ paddingLeft: 20 }} />
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.providerList}
+            >
+              {(providers ?? []).map((provider) => (
+                <ProviderCard key={provider.id} provider={provider} />
+              ))}
+            </ScrollView>
+          )}
         </View>
 
         <View style={[styles.whySection, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -199,12 +199,8 @@ export default function HomeScreen() {
                 <Feather name={icon as any} size={18} color={colors.primary} />
               </View>
               <View>
-                <Text style={[styles.whyItemTitle, { color: colors.foreground }]}>
-                  {title}
-                </Text>
-                <Text style={[styles.whyItemDesc, { color: colors.mutedForeground }]}>
-                  {desc}
-                </Text>
+                <Text style={[styles.whyItemTitle, { color: colors.foreground }]}>{title}</Text>
+                <Text style={[styles.whyItemDesc, { color: colors.mutedForeground }]}>{desc}</Text>
               </View>
             </View>
           ))}
@@ -215,16 +211,9 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    zIndex: 10,
-  },
-  headerContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
+  container: { flex: 1 },
+  header: { zIndex: 10 },
+  headerContent: { paddingHorizontal: 20, paddingBottom: 20 },
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -238,12 +227,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 16,
   },
-  locationLabel: {
-    color: "#fff",
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-    flex: 1,
-  },
+  locationLabel: { color: "#fff", fontSize: 13, fontFamily: "Inter_500Medium", flex: 1 },
   notifBtn: {
     width: 36,
     height: 36,
@@ -263,17 +247,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "#f97316",
   },
-  greeting: {
-    color: "#fff",
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
-    marginBottom: 2,
-  },
-  subGreeting: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 14,
-    marginBottom: 16,
-  },
+  greeting: { color: "#fff", fontSize: 22, fontFamily: "Inter_700Bold", marginBottom: 2 },
+  subGreeting: { color: "rgba(255,255,255,0.8)", fontSize: 14, marginBottom: 16 },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -287,24 +262,11 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
-  searchPlaceholder: {
-    fontSize: 14,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    gap: 4,
-  },
-  offersCard: {
-    margin: 16,
-    borderRadius: 16,
-    overflow: "hidden",
-    height: 160,
-  },
-  offerImage: {
-    ...StyleSheet.absoluteFillObject,
-  },
+  searchPlaceholder: { fontSize: 14 },
+  scroll: { flex: 1 },
+  scrollContent: { gap: 4 },
+  offersCard: { margin: 16, borderRadius: 16, overflow: "hidden", height: 160 },
+  offerImage: { ...StyleSheet.absoluteFillObject },
   offerOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(26, 26, 46, 0.55)",
@@ -318,26 +280,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginBottom: 8,
   },
-  offerBadgeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: 1,
-  },
-  offerTitle: {
-    color: "#fff",
-    fontSize: 20,
-    fontFamily: "Inter_700Bold",
-  },
-  offerSubtitle: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 13,
-    marginTop: 2,
-  },
-  section: {
-    marginTop: 16,
-    paddingHorizontal: 0,
-  },
+  offerBadgeText: { color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 1 },
+  offerTitle: { color: "#fff", fontSize: 20, fontFamily: "Inter_700Bold" },
+  offerSubtitle: { color: "rgba(255,255,255,0.8)", fontSize: 13, marginTop: 2 },
+  section: { marginTop: 16 },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -345,57 +291,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 14,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-  },
-  seeAll: {
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-  },
-  categoryList: {
-    paddingHorizontal: 20,
-    gap: 10,
-  },
-  serviceList: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  providerList: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  whySection: {
-    margin: 16,
-    marginTop: 24,
-    padding: 20,
-    borderRadius: 16,
-    borderWidth: 1,
-    gap: 16,
-  },
-  whyTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-    marginBottom: 4,
-  },
-  whyItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-  },
-  whyIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  whyItemTitle: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-  },
-  whyItemDesc: {
-    fontSize: 12,
-    marginTop: 1,
-  },
+  sectionTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  seeAll: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  categoryList: { paddingHorizontal: 20, gap: 10 },
+  serviceList: { paddingHorizontal: 20, gap: 12 },
+  providerList: { paddingHorizontal: 20, gap: 12 },
+  whySection: { margin: 16, marginTop: 24, padding: 20, borderRadius: 16, borderWidth: 1, gap: 16 },
+  whyTitle: { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 4 },
+  whyItem: { flexDirection: "row", alignItems: "center", gap: 14 },
+  whyIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  whyItemTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  whyItemDesc: { fontSize: 12, marginTop: 1 },
 });

@@ -3,7 +3,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
-import { Provider } from "@/constants/data";
+import { Provider } from "@workspace/api-client-react";
 
 interface ProviderCardProps {
   provider: Provider;
@@ -15,7 +15,7 @@ export function ProviderCard({ provider }: ProviderCardProps) {
   const avatarColors = [
     "#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899",
   ];
-  const avatarColor = avatarColors[parseInt(provider.id.replace("p", "")) % avatarColors.length];
+  const avatarColor = avatarColors[provider.id % avatarColors.length];
 
   return (
     <View
@@ -26,7 +26,7 @@ export function ProviderCard({ provider }: ProviderCardProps) {
     >
       <View style={[styles.avatar, { backgroundColor: avatarColor + "22" }]}>
         <Text style={[styles.avatarText, { color: avatarColor }]}>
-          {provider.avatar}
+          {provider.initials}
         </Text>
       </View>
       {provider.verified && (

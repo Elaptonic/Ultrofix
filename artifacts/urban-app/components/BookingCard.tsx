@@ -9,10 +9,15 @@ import {
   Text,
   View,
 } from "react-native";
+import {
+  useUpdateBooking,
+  getListBookingsQueryKey,
+  Booking,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 
-import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
-import { Booking } from "@/constants/data";
+import { USER_ID } from "@/constants/user";
 
 interface BookingCardProps {
   booking: Booking;
@@ -20,7 +25,16 @@ interface BookingCardProps {
 
 export function BookingCard({ booking }: BookingCardProps) {
   const colors = useColors();
-  const { cancelBooking, rateBooking } = useApp();
+  const queryClient = useQueryClient();
+  const updateBooking = useUpdateBooking({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: getListBookingsQueryKey({ userId: USER_ID }),
+        });
+      },
+    },
+  });
   const [localRating, setLocalRating] = useState<number>(booking.rating ?? 0);
 
   const getStatusColor = () => {
@@ -33,7 +47,6 @@ export function BookingCard({ booking }: BookingCardProps) {
         return { bg: "#fee2e2", text: "#ef4444" };
     }
   };
-
   const statusStyle = getStatusColor();
 
   const handleCancel = () => {
@@ -44,20 +57,22 @@ export function BookingCard({ booking }: BookingCardProps) {
           text: "Yes, Cancel",
           style: "destructive",
           onPress: () => {
-            cancelBooking(booking.id);
-            if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            updateBooking.mutate({ id: booking.id, data: { status: "cancelled" } });
+            if (Platform.OS !== "web")
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
           },
         },
       ]);
     } else {
-      cancelBooking(booking.id);
+      updateBooking.mutate({ id: booking.id, data: { status: "cancelled" } });
     }
   };
 
   const handleRate = (stars: number) => {
     setLocalRating(stars);
-    rateBooking(booking.id, stars);
-    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    updateBooking.mutate({ id: booking.id, data: { rating: stars } });
+    if (Platform.OS !== "web")
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   const formattedDate = new Date(booking.date).toLocaleDateString("en-IN", {
@@ -69,16 +84,13 @@ export function BookingCard({ booking }: BookingCardProps) {
 
   return (
     <View
-      style={[
-        styles.card,
-        { backgroundColor: colors.card, borderColor: colors.border },
-      ]}
+      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
     >
       <View style={styles.header}>
         <View style={styles.providerRow}>
           <View style={[styles.avatar, { backgroundColor: colors.primary + "22" }]}>
             <Text style={[styles.avatarText, { color: colors.primary }]}>
-              {booking.providerAvatar}
+              {booking.providerInitials}
             </Text>
           </View>
           <View style={styles.providerInfo}>
@@ -108,7 +120,10 @@ export function BookingCard({ booking }: BookingCardProps) {
         </View>
         <View style={styles.detailRow}>
           <Feather name="map-pin" size={14} color={colors.mutedForeground} />
-          <Text style={[styles.detailText, { color: colors.foreground }]} numberOfLines={1}>
+          <Text
+            style={[styles.detailText, { color: colors.foreground }]}
+            numberOfLines={1}
+          >
             {booking.address}
           </Text>
         </View>
@@ -174,12 +189,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
   },
-  providerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-    gap: 10,
-  },
+  providerRow: { flexDirection: "row", alignItems: "center", flex: 1, gap: 10 },
   avatar: {
     width: 44,
     height: 44,
@@ -187,62 +197,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: {
-    fontSize: 14,
-    fontFamily: "Inter_700Bold",
-  },
-  providerInfo: {
-    flex: 1,
-  },
-  serviceName: {
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-  },
-  providerName: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  statusText: {
-    fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
-  },
-  divider: {
-    height: 1,
-    marginVertical: 12,
-  },
-  details: {
-    gap: 8,
-  },
-  detailRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  detailText: {
-    fontSize: 13,
-    flex: 1,
-  },
-  priceText: {
-    fontSize: 15,
-    fontFamily: "Inter_700Bold",
-  },
-  ratingSection: {
-    marginTop: 14,
-    alignItems: "center",
-    gap: 8,
-  },
-  rateLabel: {
-    fontSize: 13,
-  },
-  stars: {
-    flexDirection: "row",
-    gap: 8,
-  },
+  avatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  providerInfo: { flex: 1 },
+  serviceName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  providerName: { fontSize: 12, marginTop: 2 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  statusText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  divider: { height: 1, marginVertical: 12 },
+  details: { gap: 8 },
+  detailRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  detailText: { fontSize: 13, flex: 1 },
+  priceText: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  ratingSection: { marginTop: 14, alignItems: "center", gap: 8 },
+  rateLabel: { fontSize: 13 },
+  stars: { flexDirection: "row", gap: 8 },
   cancelBtn: {
     marginTop: 14,
     paddingVertical: 10,
@@ -250,8 +218,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
   },
-  cancelText: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-  },
+  cancelText: { fontSize: 14, fontFamily: "Inter_500Medium" },
 });

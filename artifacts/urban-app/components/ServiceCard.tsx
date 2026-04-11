@@ -22,7 +22,7 @@ const IMAGE_MAP: Record<string, ImageSourcePropType> = {
 };
 
 interface ServiceCardProps {
-  id: string;
+  id: number | string;
   name: string;
   category: string;
   startingPrice: number;
@@ -49,17 +49,18 @@ export function ServiceCard({
   const colors = useColors();
   const router = useRouter();
   const { savedServices, toggleSavedService } = useApp();
-  const isSaved = savedServices.includes(id);
+  const sid = String(id);
+  const isSaved = savedServices.includes(sid);
 
   const handlePress = () => {
     if (Platform.OS !== "web") Haptics.selectionAsync();
-    router.push(`/service/${id}`);
+    router.push(`/service/${sid}`);
   };
 
   const handleSave = (e: any) => {
     e.stopPropagation?.();
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    toggleSavedService(id);
+    toggleSavedService(sid);
   };
 
   const imgSource = IMAGE_MAP[image] || IMAGE_MAP["cleaning"];
