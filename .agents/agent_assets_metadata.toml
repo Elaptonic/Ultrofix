@@ -1,0 +1,32 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "44qrsLDmKHHQCgHMqt8KF"
+uri = "file://artifacts/urban-app/assets/images/icon.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "kWtiRzTM-BfVphP8vgRzu"
+uri = "file://artifacts/urban-app/assets/images/cleaning.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "hnqGaSHxz3w6BJE3V_VO-"
+uri = "file://artifacts/urban-app/assets/images/plumbing.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "je3WXup1MdIE0T531wihF"
+uri = "file://artifacts/urban-app/assets/images/salon.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "FaaA32h1-R43vKF20g3Qr"
+uri = "file://artifacts/urban-app/assets/images/hero.png"
+type = "image"
+title = "generated_image"

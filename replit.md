@@ -16,6 +16,33 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
 
+## Artifacts
+
+### Urban Company Mobile App (`artifacts/urban-app`)
+
+A fully-featured Urban Company-style home services marketplace mobile app built with Expo/React Native.
+
+**Features:**
+- Home screen with hero banner, service categories, popular services, top providers
+- 8 service categories (Cleaning, Plumbing, Electrical, Salon, Painting, Pest Control, Carpentry, Appliances)
+- Service detail page with provider selection and booking flow
+- Date & time slot selection for bookings
+- Booking management (Upcoming, Completed, Cancelled tabs)
+- Save/unsave services (persistent via AsyncStorage)
+- Search with category filters
+- Address management (saved + custom)
+- Notification center
+- Profile editing
+
+**Navigation:** 4-tab structure (Home, Bookings, Saved, Profile) + stack screens for service detail, booking, search, category, address, notifications
+
+**Storage:** AsyncStorage for local persistence (saved services, address, profile)
+
+**Design:** Orange (#f97316) primary color, Inter fonts, mobile-native UI patterns
+
+### API Server (`artifacts/api-server`)
+Express 5 backend (shared, used by all artifacts)
+
 ## Key Commands
 
 - `pnpm run typecheck` — full typecheck across all packages
