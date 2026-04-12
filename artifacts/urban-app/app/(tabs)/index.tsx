@@ -1,6 +1,8 @@
 import { Feather } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useRef } from "react";
 import {
@@ -17,12 +19,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   useListServices,
   useListProviders,
+  useListNotifications,
 } from "@workspace/api-client-react";
 
 import { CategoryCard } from "@/components/CategoryCard";
 import { ProviderCard } from "@/components/ProviderCard";
 import { ServiceCard } from "@/components/ServiceCard";
 import { CATEGORIES } from "@/constants/data";
+import { USER_ID } from "@/constants/user";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -32,14 +36,24 @@ export default function HomeScreen() {
   const router = useRouter();
   const { selectedAddress } = useApp();
   const scrollY = useRef(new Animated.Value(0)).current;
+  const isIOS = Platform.OS === "ios";
 
   const { data: services, isLoading: servicesLoading } = useListServices();
   const { data: providers, isLoading: providersLoading } = useListProviders();
+  const { data: notifications } = useListNotifications({ userId: USER_ID });
 
   const popularServices = services?.filter((s) => s.popular) ?? [];
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, 60],
+  const unreadCount = (notifications ?? []).filter((n) => !n.read).length;
+
+  const headerScale = scrollY.interpolate({
+    inputRange: [0, 80],
     outputRange: [1, 0.97],
+    extrapolate: "clamp",
+  });
+
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [60, 100],
+    outputRange: [1, 0],
     extrapolate: "clamp",
   });
 
@@ -47,25 +61,29 @@ export default function HomeScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Animated.View
         style={[
-          styles.header,
-          {
-            backgroundColor: colors.primary,
-            paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) + 16,
-            opacity: headerOpacity,
-          },
+          styles.headerWrapper,
+          { transform: [{ scale: headerScale }] },
         ]}
       >
-        <View style={styles.headerContent}>
+        <LinearGradient
+          colors={["#f97316", "#fb923c", "#fed7aa"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[
+            styles.header,
+            { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) + 16 },
+          ]}
+        >
           <View style={styles.locationRow}>
             <Pressable
               style={styles.locationBtn}
               onPress={() => router.push("/address")}
             >
-              <Feather name="map-pin" size={14} color="#fff" />
+              <Feather name="map-pin" size={14} color="rgba(255,255,255,0.9)" />
               <Text style={styles.locationLabel} numberOfLines={1}>
                 {selectedAddress}
               </Text>
-              <Feather name="chevron-down" size={14} color="#fff" />
+              <Feather name="chevron-down" size={14} color="rgba(255,255,255,0.9)" />
             </Pressable>
             <Pressable
               onPress={() => {
@@ -75,21 +93,32 @@ export default function HomeScreen() {
               style={styles.notifBtn}
             >
               <Feather name="bell" size={20} color="#fff" />
-              <View style={styles.notifDot} />
+              {unreadCount > 0 && (
+                <View style={styles.notifBadge}>
+                  <Text style={styles.notifBadgeText}>
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </Text>
+                </View>
+              )}
             </Pressable>
           </View>
-          <Text style={styles.greeting}>Hello there!</Text>
+
+          <Text style={styles.greeting}>Hello there! 👋</Text>
           <Text style={styles.subGreeting}>What service do you need today?</Text>
-          <Pressable
-            style={[styles.searchBar, { backgroundColor: "#fff" }]}
-            onPress={() => router.push("/search")}
-          >
-            <Feather name="search" size={18} color={colors.mutedForeground} />
-            <Text style={[styles.searchPlaceholder, { color: colors.mutedForeground }]}>
-              Search for services...
-            </Text>
-          </Pressable>
-        </View>
+
+          {isIOS ? (
+            <BlurView intensity={30} tint="light" style={styles.searchBar}>
+              <SearchContent colors={colors} router={router} />
+            </BlurView>
+          ) : (
+            <Pressable
+              style={[styles.searchBar, { backgroundColor: "rgba(255,255,255,0.92)" }]}
+              onPress={() => router.push("/search")}
+            >
+              <SearchContent colors={colors} router={router} />
+            </Pressable>
+          )}
+        </LinearGradient>
       </Animated.View>
 
       <Animated.ScrollView
@@ -111,13 +140,16 @@ export default function HomeScreen() {
             style={styles.offerImage}
             contentFit="cover"
           />
-          <View style={styles.offerOverlay}>
+          <LinearGradient
+            colors={["transparent", "rgba(15,15,30,0.72)"]}
+            style={styles.offerOverlay}
+          >
             <View style={[styles.offerBadge, { backgroundColor: colors.primary }]}>
               <Text style={styles.offerBadgeText}>LIMITED OFFER</Text>
             </View>
             <Text style={styles.offerTitle}>20% off on first booking</Text>
             <Text style={styles.offerSubtitle}>Use code: FIRST20</Text>
-          </View>
+          </LinearGradient>
         </View>
 
         <View style={styles.section}>
@@ -125,7 +157,7 @@ export default function HomeScreen() {
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
               Our Services
             </Text>
-            <Pressable onPress={() => router.push("/all-categories")}>
+            <Pressable onPress={() => router.push("/search")}>
               <Text style={[styles.seeAll, { color: colors.primary }]}>See all</Text>
             </Pressable>
           </View>
@@ -150,7 +182,7 @@ export default function HomeScreen() {
             </Pressable>
           </View>
           {servicesLoading ? (
-            <ActivityIndicator color={colors.primary} style={{ paddingLeft: 20 }} />
+            <ActivityIndicator color={colors.primary} style={{ paddingLeft: 20, paddingVertical: 20 }} />
           ) : (
             <ScrollView
               horizontal
@@ -171,7 +203,7 @@ export default function HomeScreen() {
             </Text>
           </View>
           {providersLoading ? (
-            <ActivityIndicator color={colors.primary} style={{ paddingLeft: 20 }} />
+            <ActivityIndicator color={colors.primary} style={{ paddingLeft: 20, paddingVertical: 20 }} />
           ) : (
             <ScrollView
               horizontal
@@ -185,17 +217,15 @@ export default function HomeScreen() {
           )}
         </View>
 
-        <View style={[styles.whySection, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.whyTitle, { color: colors.foreground }]}>
-            Why choose Urban?
-          </Text>
+        <View style={[styles.whySection, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+          <Text style={[styles.whyTitle, { color: colors.foreground }]}>Why choose Urban?</Text>
           {[
-            { icon: "shield", title: "Verified Professionals", desc: "Background-checked and trained" },
+            { icon: "shield", title: "Verified Professionals", desc: "Background-checked & trained" },
             { icon: "clock", title: "On-time Guarantee", desc: "Punctual or we refund" },
-            { icon: "award", title: "Quality Assured", desc: "100% satisfaction guarantee" },
+            { icon: "award", title: "Quality Assured", desc: "100% satisfaction guaranteed" },
           ].map(({ icon, title, desc }) => (
             <View key={title} style={styles.whyItem}>
-              <View style={[styles.whyIcon, { backgroundColor: colors.primary + "15" }]}>
+              <View style={[styles.whyIcon, { backgroundColor: colors.primary + "18" }]}>
                 <Feather name={icon as any} size={18} color={colors.primary} />
               </View>
               <View>
@@ -210,15 +240,26 @@ export default function HomeScreen() {
   );
 }
 
+function SearchContent({ colors, router }: { colors: any; router: any }) {
+  return (
+    <Pressable style={styles.searchInner} onPress={() => router.push("/search")}>
+      <Feather name="search" size={18} color={colors.mutedForeground} />
+      <Text style={[styles.searchPlaceholder, { color: colors.mutedForeground }]}>
+        Search for services...
+      </Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { zIndex: 10 },
-  headerContent: { paddingHorizontal: 20, paddingBottom: 20 },
+  headerWrapper: { zIndex: 10 },
+  header: { paddingHorizontal: 20, paddingBottom: 20 },
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 12,
+    marginBottom: 14,
   },
   locationBtn: {
     flexDirection: "row",
@@ -227,49 +268,71 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 16,
   },
-  locationLabel: { color: "#fff", fontSize: 13, fontFamily: "Inter_500Medium", flex: 1 },
+  locationLabel: {
+    color: "rgba(255,255,255,0.92)",
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    flex: 1,
+  },
   notifBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
-  notifDot: {
+  notifBadge: {
     position: "absolute",
-    top: 8,
-    right: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#fbbf24",
+    top: 5,
+    right: 5,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#ef4444",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
     borderWidth: 1.5,
     borderColor: "#f97316",
   },
-  greeting: { color: "#fff", fontSize: 22, fontFamily: "Inter_700Bold", marginBottom: 2 },
-  subGreeting: { color: "rgba(255,255,255,0.8)", fontSize: 14, marginBottom: 16 },
+  notifBadgeText: { color: "#fff", fontSize: 9, fontFamily: "Inter_700Bold" },
+  greeting: {
+    color: "#fff",
+    fontSize: 24,
+    fontFamily: "Inter_700Bold",
+    marginBottom: 2,
+    textShadowColor: "rgba(0,0,0,0.1)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  subGreeting: { color: "rgba(255,255,255,0.85)", fontSize: 14, marginBottom: 16 },
   searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 14,
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.6)",
   },
-  searchPlaceholder: { fontSize: 14 },
+  searchInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    backgroundColor: "transparent",
+  },
+  searchPlaceholder: { fontSize: 14, fontFamily: "Inter_400Regular" },
   scroll: { flex: 1 },
-  scrollContent: { gap: 4 },
-  offersCard: { margin: 16, borderRadius: 16, overflow: "hidden", height: 160 },
+  scrollContent: { gap: 4, paddingTop: 4 },
+  offersCard: { margin: 16, borderRadius: 20, overflow: "hidden", height: 168 },
   offerImage: { ...StyleSheet.absoluteFillObject },
   offerOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(26, 26, 46, 0.55)",
     padding: 20,
     justifyContent: "flex-end",
   },
@@ -281,7 +344,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   offerBadgeText: { color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 1 },
-  offerTitle: { color: "#fff", fontSize: 20, fontFamily: "Inter_700Bold" },
+  offerTitle: { color: "#fff", fontSize: 21, fontFamily: "Inter_700Bold" },
   offerSubtitle: { color: "rgba(255,255,255,0.8)", fontSize: 13, marginTop: 2 },
   section: { marginTop: 16 },
   sectionHeader: {
@@ -296,10 +359,28 @@ const styles = StyleSheet.create({
   categoryList: { paddingHorizontal: 20, gap: 10 },
   serviceList: { paddingHorizontal: 20, gap: 12 },
   providerList: { paddingHorizontal: 20, gap: 12 },
-  whySection: { margin: 16, marginTop: 24, padding: 20, borderRadius: 16, borderWidth: 1, gap: 16 },
+  whySection: {
+    margin: 16,
+    marginTop: 24,
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 16,
+    shadowColor: "#6080c0",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 2,
+  },
   whyTitle: { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 4 },
   whyItem: { flexDirection: "row", alignItems: "center", gap: 14 },
-  whyIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  whyIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   whyItemTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   whyItemDesc: { fontSize: 12, marginTop: 1 },
 });

@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React from "react";
@@ -25,21 +26,15 @@ export function CategoryCard({
 }: CategoryCardProps) {
   const colors = useColors();
   const router = useRouter();
+  const isIOS = Platform.OS === "ios";
 
   const handlePress = () => {
-    if (Platform.OS !== "web") Haptics.selectionAsync();
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/category/${id}`);
   };
 
-  return (
-    <Pressable
-      onPress={handlePress}
-      style={({ pressed }) => [
-        styles.card,
-        { backgroundColor: colors.card, borderColor: colors.border },
-        pressed && { opacity: 0.85, transform: [{ scale: 0.96 }] },
-      ]}
-    >
+  const CardInner = (
+    <>
       <View style={[styles.iconBg, { backgroundColor: bgColor }]}>
         <Feather name={icon as any} size={22} color={color} />
       </View>
@@ -47,26 +42,56 @@ export function CategoryCard({
         {name}
       </Text>
       <Text style={[styles.count, { color: colors.mutedForeground }]}>
-        {serviceCount} services
+        {serviceCount}
       </Text>
+    </>
+  );
+
+  return (
+    <Pressable
+      onPress={handlePress}
+      style={({ pressed }) => [
+        styles.card,
+        pressed && { opacity: 0.82, transform: [{ scale: 0.95 }] },
+      ]}
+    >
+      {isIOS ? (
+        <BlurView intensity={50} tint="light" style={styles.blurCard}>
+          {CardInner}
+        </BlurView>
+      ) : (
+        <View
+          style={[
+            styles.blurCard,
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder, borderWidth: StyleSheet.hairlineWidth },
+          ]}
+        >
+          {CardInner}
+        </View>
+      )}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    width: 90,
+    width: 88,
+    borderRadius: 18,
+    overflow: "hidden",
+    shadowColor: "#6080c0",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  blurCard: {
     alignItems: "center",
     paddingVertical: 14,
     paddingHorizontal: 8,
-    borderRadius: 16,
-    borderWidth: 1,
     gap: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.6)",
   },
   iconBg: {
     width: 48,

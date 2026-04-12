@@ -17,6 +17,8 @@ tags:
     description: Booking operations
   - name: profile
     description: User profile
+  - name: notifications
+    description: Notifications
 
 paths:
   /healthz:
@@ -82,7 +84,7 @@ paths:
     get:
       operationId: listProviders
       tags: [providers]
-      summary: List all providers
+      summary: List providers
       parameters:
         - name: category
           in: query
@@ -147,7 +149,7 @@ paths:
     get:
       operationId: getBooking
       tags: [bookings]
-      summary: Get a booking by ID
+      summary: Get booking by ID
       parameters:
         - name: id
           in: path
@@ -170,7 +172,7 @@ paths:
     patch:
       operationId: updateBooking
       tags: [bookings]
-      summary: Update a booking (cancel or rate)
+      summary: Update booking status or rating
       parameters:
         - name: id
           in: path
@@ -239,11 +241,84 @@ paths:
               $ref: "#/components/schemas/UpsertProfileBody"
       responses:
         "200":
-          description: Updated profile
+          description: Upserted profile
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/UserProfile"
+
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List notifications for a user
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/{id}:
+    patch:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark a notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated notification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /notifications/mark-all-read:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read for a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+              required: [userId]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                required: [success]
 
 components:
   schemas:
@@ -459,3 +534,37 @@ components:
         - email
         - phone
         - address
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        type:
+          type: string
+        icon:
+          type: string
+        iconColor:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        read:
+          type: boolean
+        bookingId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - userId
+        - type
+        - icon
+        - iconColor
+        - title
+        - body
+        - read
+        - createdAt

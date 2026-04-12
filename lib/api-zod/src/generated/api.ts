@@ -58,7 +58,7 @@ export const GetServiceResponse = zod.object({
 });
 
 /**
- * @summary List all providers
+ * @summary List providers
  */
 export const ListProvidersQueryParams = zod.object({
   category: zod.coerce.string().optional(),
@@ -118,7 +118,7 @@ export const CreateBookingBody = zod.object({
 });
 
 /**
- * @summary Get a booking by ID
+ * @summary Get booking by ID
  */
 export const GetBookingParams = zod.object({
   id: zod.coerce.number(),
@@ -142,7 +142,7 @@ export const GetBookingResponse = zod.object({
 });
 
 /**
- * @summary Update a booking (cancel or rate)
+ * @summary Update booking status or rating
  */
 export const UpdateBookingParams = zod.object({
   id: zod.coerce.number(),
@@ -205,4 +205,58 @@ export const UpsertProfileResponse = zod.object({
   email: zod.string(),
   phone: zod.string(),
   address: zod.string(),
+});
+
+/**
+ * @summary List notifications for a user
+ */
+export const ListNotificationsQueryParams = zod.object({
+  userId: zod.coerce.string().optional(),
+});
+
+export const ListNotificationsResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  type: zod.string(),
+  icon: zod.string(),
+  iconColor: zod.string(),
+  title: zod.string(),
+  body: zod.string(),
+  read: zod.boolean(),
+  bookingId: zod.number().nullish(),
+  createdAt: zod.string(),
+});
+export const ListNotificationsResponse = zod.array(
+  ListNotificationsResponseItem,
+);
+
+/**
+ * @summary Mark a notification as read
+ */
+export const MarkNotificationReadParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const MarkNotificationReadResponse = zod.object({
+  id: zod.number(),
+  userId: zod.string(),
+  type: zod.string(),
+  icon: zod.string(),
+  iconColor: zod.string(),
+  title: zod.string(),
+  body: zod.string(),
+  read: zod.boolean(),
+  bookingId: zod.number().nullish(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Mark all notifications as read for a user
+ */
+export const MarkAllNotificationsReadBody = zod.object({
+  userId: zod.string(),
+});
+
+export const MarkAllNotificationsReadResponse = zod.object({
+  success: zod.boolean(),
 });

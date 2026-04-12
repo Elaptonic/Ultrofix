@@ -1,5 +1,7 @@
-import { db, servicesTable, providersTable, bookingsTable } from "@workspace/db";
+import { db, servicesTable, providersTable, notificationsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { logger } from "./logger";
+import { USER_ID } from "./constants";
 
 const SERVICES = [
   {
@@ -23,6 +25,18 @@ const SERVICES = [
     rating: 4.7,
     reviewCount: 1923,
     duration: "1-2 hours",
+    imageKey: "cleaning",
+    popular: false,
+  },
+  {
+    slug: "sofa-cleaning",
+    name: "Sofa & Upholstery Cleaning",
+    category: "cleaning",
+    description: "Professional cleaning of sofas, couches and fabric furniture using steam cleaning and stain removal.",
+    startingPrice: 799,
+    rating: 4.7,
+    reviewCount: 1102,
+    duration: "2-3 hours",
     imageKey: "cleaning",
     popular: false,
   },
@@ -51,6 +65,18 @@ const SERVICES = [
     popular: false,
   },
   {
+    slug: "water-heater-repair",
+    name: "Water Heater Repair",
+    category: "plumbing",
+    description: "Diagnosis and repair of geyser and water heater issues. Includes element replacement, thermostat fixes.",
+    startingPrice: 599,
+    rating: 4.8,
+    reviewCount: 731,
+    duration: "1-2 hours",
+    imageKey: "plumbing",
+    popular: true,
+  },
+  {
     slug: "electrical-wiring",
     name: "Electrical Wiring",
     category: "electrical",
@@ -70,6 +96,18 @@ const SERVICES = [
     startingPrice: 299,
     rating: 4.9,
     reviewCount: 3201,
+    duration: "30-60 min",
+    imageKey: "electrical",
+    popular: true,
+  },
+  {
+    slug: "switch-socket-repair",
+    name: "Switch & Socket Repair",
+    category: "electrical",
+    description: "Safe replacement and repair of switches, sockets and electrical boards. ISI certified components used.",
+    startingPrice: 199,
+    rating: 4.8,
+    reviewCount: 2145,
     duration: "30-60 min",
     imageKey: "electrical",
     popular: true,
@@ -99,6 +137,18 @@ const SERVICES = [
     popular: false,
   },
   {
+    slug: "facial-and-cleanup",
+    name: "Facial & Cleanup",
+    category: "salon",
+    description: "Deep cleansing facial treatment with premium products. Removes dead skin, unclogs pores and brightens skin.",
+    startingPrice: 799,
+    rating: 4.9,
+    reviewCount: 1876,
+    duration: "1 hour",
+    imageKey: "salon",
+    popular: true,
+  },
+  {
     slug: "wall-painting",
     name: "Wall Painting",
     category: "painting",
@@ -106,6 +156,18 @@ const SERVICES = [
     startingPrice: 1499,
     rating: 4.6,
     reviewCount: 891,
+    duration: "1-2 days",
+    imageKey: "painting",
+    popular: false,
+  },
+  {
+    slug: "waterproofing",
+    name: "Waterproofing",
+    category: "painting",
+    description: "Expert waterproofing of terrace, bathroom and external walls to prevent seepage and leakage.",
+    startingPrice: 2999,
+    rating: 4.7,
+    reviewCount: 456,
     duration: "1-2 days",
     imageKey: "painting",
     popular: false,
@@ -120,6 +182,54 @@ const SERVICES = [
     reviewCount: 1567,
     duration: "1-2 hours",
     imageKey: "pest",
+    popular: true,
+  },
+  {
+    slug: "termite-control",
+    name: "Termite Control",
+    category: "pest",
+    description: "Comprehensive termite inspection and treatment. Protect your furniture and wooden structures.",
+    startingPrice: 1999,
+    rating: 4.8,
+    reviewCount: 823,
+    duration: "2-4 hours",
+    imageKey: "pest",
+    popular: false,
+  },
+  {
+    slug: "carpentry-repair",
+    name: "Carpentry Repair",
+    category: "carpentry",
+    description: "Expert repair of wooden furniture, cabinets, doors and windows. Includes joints, hinges and polish.",
+    startingPrice: 599,
+    rating: 4.7,
+    reviewCount: 643,
+    duration: "1-3 hours",
+    imageKey: "carpentry",
+    popular: false,
+  },
+  {
+    slug: "ac-service",
+    name: "AC Service & Repair",
+    category: "appliances",
+    description: "Complete air conditioner servicing including cleaning, gas check and performance optimization.",
+    startingPrice: 799,
+    rating: 4.8,
+    reviewCount: 2341,
+    duration: "1-2 hours",
+    imageKey: "appliances",
+    popular: true,
+  },
+  {
+    slug: "washing-machine-repair",
+    name: "Washing Machine Repair",
+    category: "appliances",
+    description: "Expert repair of all brands of washing machines. Covers motor, drum, board and valve issues.",
+    startingPrice: 499,
+    rating: 4.7,
+    reviewCount: 1234,
+    duration: "1-2 hours",
+    imageKey: "appliances",
     popular: true,
   },
 ];
@@ -185,20 +295,85 @@ const PROVIDERS = [
     verified: true,
     category: "electrical",
   },
+  {
+    slug: "meena-joshi",
+    name: "Meena Joshi",
+    initials: "MJ",
+    rating: 4.9,
+    reviewCount: 198,
+    jobsCompleted: 723,
+    specializations: ["Facial", "Hair Color", "Waxing"],
+    experience: "5 years",
+    verified: true,
+    category: "salon",
+  },
+  {
+    slug: "raju-electrician",
+    name: "Raju Verma",
+    initials: "RV",
+    rating: 4.8,
+    reviewCount: 321,
+    jobsCompleted: 1102,
+    specializations: ["AC Repair", "Wiring", "MCB Fitting"],
+    experience: "8 years",
+    verified: true,
+    category: "electrical",
+  },
+  {
+    slug: "deepak-plumber",
+    name: "Deepak Nair",
+    initials: "DN",
+    rating: 4.7,
+    reviewCount: 234,
+    jobsCompleted: 867,
+    specializations: ["Water Heater", "Tap Repair", "Drain Cleaning"],
+    experience: "4 years",
+    verified: true,
+    category: "plumbing",
+  },
 ];
 
 export async function seedDatabase() {
   try {
     const existingServices = await db.select().from(servicesTable).limit(1);
-    if (existingServices.length > 0) {
-      logger.info("Database already seeded, skipping");
-      return;
+    if (existingServices.length === 0) {
+      logger.info("Seeding database...");
+      await db.insert(servicesTable).values(SERVICES);
+      await db.insert(providersTable).values(PROVIDERS);
+      logger.info("Services and providers seeded");
+    } else {
+      logger.info("Services already seeded, skipping");
     }
 
-    logger.info("Seeding database...");
-    await db.insert(servicesTable).values(SERVICES);
-    await db.insert(providersTable).values(PROVIDERS);
-    logger.info("Database seeded successfully");
+    const existingNotifs = await db
+      .select()
+      .from(notificationsTable)
+      .where(eq(notificationsTable.userId, USER_ID))
+      .limit(1);
+
+    if (existingNotifs.length === 0) {
+      await db.insert(notificationsTable).values([
+        {
+          userId: USER_ID,
+          type: "welcome",
+          icon: "gift",
+          iconColor: "#f97316",
+          title: "Welcome to Urban!",
+          body: "Book your first service and get 20% off. Use code: FIRST20",
+          read: false,
+        },
+        {
+          userId: USER_ID,
+          type: "offer",
+          icon: "tag",
+          iconColor: "#8b5cf6",
+          title: "Special Weekend Offer",
+          body: "Get 30% off on all cleaning services this weekend. Limited time only!",
+          read: false,
+        },
+      ]);
+      logger.info("Default notifications seeded");
+    }
   } catch (err) {
     logger.error({ err }, "Failed to seed database");
   }

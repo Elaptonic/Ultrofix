@@ -1,4 +1,4 @@
-import { bookingsTable, db, providersTable, servicesTable } from "@workspace/db";
+import { bookingsTable, db, notificationsTable, providersTable, servicesTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 
@@ -54,6 +54,22 @@ router.post("/bookings", async (req, res): Promise<void> => {
     })
     .returning();
 
+  const formattedDate = new Date(date).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+  });
+
+  await db.insert(notificationsTable).values({
+    userId: String(userId),
+    type: "booking_confirmed",
+    icon: "check-circle",
+    iconColor: "#22c55e",
+    title: "Booking Confirmed!",
+    body: `Your ${service.name} with ${provider.name} is confirmed for ${formattedDate} at ${time}.`,
+    read: false,
+    bookingId: booking.id,
+  });
+
   res.status(201).json(booking);
 });
 
@@ -103,6 +119,31 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Booking not found" });
     return;
   }
+
+  if (status === "cancelled") {
+    await db.insert(notificationsTable).values({
+      userId: booking.userId,
+      type: "booking_cancelled",
+      icon: "x-circle",
+      iconColor: "#ef4444",
+      title: "Booking Cancelled",
+      body: `Your ${booking.serviceName} booking has been cancelled.`,
+      read: false,
+      bookingId: booking.id,
+    });
+  } else if (status === "completed" && !booking.rating) {
+    await db.insert(notificationsTable).values({
+      userId: booking.userId,
+      type: "rating_request",
+      icon: "star",
+      iconColor: "#f59e0b",
+      title: "Rate Your Experience",
+      body: `How was your ${booking.serviceName} with ${booking.providerName}? Tap to rate.`,
+      read: false,
+      bookingId: booking.id,
+    });
+  }
+
   res.json(booking);
 });
 

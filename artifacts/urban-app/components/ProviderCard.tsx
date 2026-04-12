@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
 import { Provider } from "@workspace/api-client-react";
@@ -11,33 +12,27 @@ interface ProviderCardProps {
 
 export function ProviderCard({ provider }: ProviderCardProps) {
   const colors = useColors();
+  const isIOS = Platform.OS === "ios";
 
   const avatarColors = [
     "#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899",
   ];
   const avatarColor = avatarColors[provider.id % avatarColors.length];
 
-  return (
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: colors.card, borderColor: colors.border },
-      ]}
-    >
-      <View style={[styles.avatar, { backgroundColor: avatarColor + "22" }]}>
+  const Inner = (
+    <View style={styles.inner}>
+      <View style={[styles.avatar, { backgroundColor: avatarColor + "20" }]}>
         <Text style={[styles.avatarText, { color: avatarColor }]}>
           {provider.initials}
         </Text>
       </View>
       {provider.verified && (
-        <View style={[styles.verifiedBadge, { backgroundColor: colors.success + "22" }]}>
-          <Feather name="check-circle" size={10} color={colors.success ?? "#22c55e"} />
-          <Text style={[styles.verifiedText, { color: colors.success ?? "#22c55e" }]}>
-            Verified
-          </Text>
+        <View style={[styles.verifiedBadge, { backgroundColor: "#d1fae5" }]}>
+          <Feather name="check-circle" size={10} color="#10b981" />
+          <Text style={[styles.verifiedText, { color: "#10b981" }]}>Verified</Text>
         </View>
       )}
-      <Text style={[styles.name, { color: colors.foreground }]}>
+      <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
         {provider.name}
       </Text>
       <View style={styles.ratingRow}>
@@ -54,61 +49,75 @@ export function ProviderCard({ provider }: ProviderCardProps) {
           <Text style={[styles.statValue, { color: colors.foreground }]}>
             {provider.jobsCompleted.toLocaleString()}
           </Text>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
-            Jobs
-          </Text>
+          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Jobs</Text>
         </View>
         <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
         <View style={styles.stat}>
           <Text style={[styles.statValue, { color: colors.foreground }]}>
             {provider.experience}
           </Text>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
-            Exp.
-          </Text>
+          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Exp.</Text>
         </View>
       </View>
       <View style={styles.tags}>
         {provider.specializations.slice(0, 2).map((spec) => (
-          <View
-            key={spec}
-            style={[styles.tag, { backgroundColor: colors.muted }]}
-          >
-            <Text style={[styles.tagText, { color: colors.mutedForeground }]}>
-              {spec}
-            </Text>
+          <View key={spec} style={[styles.tag, { backgroundColor: colors.primary + "14" }]}>
+            <Text style={[styles.tagText, { color: colors.primary }]}>{spec}</Text>
           </View>
         ))}
       </View>
+    </View>
+  );
+
+  return (
+    <View style={styles.card}>
+      {isIOS ? (
+        <BlurView intensity={50} tint="light" style={styles.blur}>
+          {Inner}
+        </BlurView>
+      ) : (
+        <View
+          style={[
+            styles.blur,
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+          ]}
+        >
+          {Inner}
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    width: 160,
-    borderRadius: 16,
-    borderWidth: 1,
+    width: 168,
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#6080c0",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  blur: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.6)",
+    borderRadius: 20,
+  },
+  inner: {
     padding: 14,
     alignItems: "center",
     gap: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
   },
   avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: {
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-  },
+  avatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
   verifiedBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -117,60 +126,17 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 20,
   },
-  verifiedText: {
-    fontSize: 10,
-    fontFamily: "Inter_500Medium",
-  },
-  name: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
-    textAlign: "center",
-  },
-  ratingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-  },
-  rating: {
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-  },
-  reviews: {
-    fontSize: 11,
-  },
-  statsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginTop: 4,
-  },
-  stat: {
-    alignItems: "center",
-  },
-  statValue: {
-    fontSize: 13,
-    fontFamily: "Inter_700Bold",
-  },
-  statLabel: {
-    fontSize: 10,
-  },
-  statDivider: {
-    width: 1,
-    height: 24,
-  },
-  tags: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 4,
-    justifyContent: "center",
-    marginTop: 2,
-  },
-  tag: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 20,
-  },
-  tagText: {
-    fontSize: 10,
-  },
+  verifiedText: { fontSize: 10, fontFamily: "Inter_500Medium" },
+  name: { fontSize: 13, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  ratingRow: { flexDirection: "row", alignItems: "center", gap: 3 },
+  rating: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  reviews: { fontSize: 11 },
+  statsRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 4 },
+  stat: { alignItems: "center" },
+  statValue: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  statLabel: { fontSize: 10 },
+  statDivider: { width: 1, height: 24 },
+  tags: { flexDirection: "row", flexWrap: "wrap", gap: 4, justifyContent: "center", marginTop: 2 },
+  tag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  tagText: { fontSize: 10, fontFamily: "Inter_500Medium" },
 });

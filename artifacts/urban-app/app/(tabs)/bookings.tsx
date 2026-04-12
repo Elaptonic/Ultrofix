@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -10,12 +11,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  useListBookings,
-  getListBookingsQueryKey,
-  useUpdateBooking,
-} from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useListBookings } from "@workspace/api-client-react";
 
 import { BookingCard } from "@/components/BookingCard";
 import { useColors } from "@/hooks/useColors";
@@ -27,6 +23,7 @@ type Tab = typeof TABS[number];
 export default function BookingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const isIOS = Platform.OS === "ios";
   const [activeTab, setActiveTab] = useState<Tab>("Upcoming");
 
   const { data: bookings, isLoading } = useListBookings({ userId: USER_ID });
@@ -37,43 +34,60 @@ export default function BookingsScreen() {
     return b.status === "cancelled";
   });
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View
-        style={[
-          styles.header,
-          {
-            backgroundColor: colors.card,
-            paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) + 16,
-            borderBottomColor: colors.border,
-          },
-        ]}
-      >
-        <Text style={[styles.title, { color: colors.foreground }]}>My Bookings</Text>
-        <View style={styles.tabs}>
-          {TABS.map((tab) => (
-            <Pressable
-              key={tab}
-              onPress={() => setActiveTab(tab)}
+  const HeaderEl = (
+    <View style={styles.headerInner}>
+      <Text style={[styles.title, { color: colors.foreground }]}>My Bookings</Text>
+      <View style={styles.tabs}>
+        {TABS.map((tab) => (
+          <Pressable
+            key={tab}
+            onPress={() => setActiveTab(tab)}
+            style={[
+              styles.tab,
+              activeTab === tab
+                ? { backgroundColor: colors.primary }
+                : { backgroundColor: colors.glass, borderColor: colors.glassBorder, borderWidth: StyleSheet.hairlineWidth },
+            ]}
+          >
+            <Text
               style={[
-                styles.tab,
-                activeTab === tab
-                  ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                  : { borderColor: colors.border },
+                styles.tabText,
+                { color: activeTab === tab ? "#fff" : colors.mutedForeground },
               ]}
             >
-              <Text
-                style={[
-                  styles.tabText,
-                  { color: activeTab === tab ? "#fff" : colors.mutedForeground },
-                ]}
-              >
-                {tab}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+              {tab}
+            </Text>
+          </Pressable>
+        ))}
       </View>
+    </View>
+  );
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {isIOS ? (
+        <BlurView
+          intensity={70}
+          tint="light"
+          style={[styles.header, { paddingTop: insets.top + 16 }]}
+        >
+          {HeaderEl}
+        </BlurView>
+      ) : (
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: colors.card,
+              paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) + 16,
+              borderBottomColor: colors.border,
+              borderBottomWidth: StyleSheet.hairlineWidth,
+            },
+          ]}
+        >
+          {HeaderEl}
+        </View>
+      )}
 
       <ScrollView
         style={styles.scroll}
@@ -89,7 +103,7 @@ export default function BookingsScreen() {
           </View>
         ) : filteredBookings.length === 0 ? (
           <View style={styles.empty}>
-            <View style={[styles.emptyIcon, { backgroundColor: colors.muted }]}>
+            <View style={[styles.emptyIcon, { backgroundColor: colors.glass }]}>
               <Feather name="calendar" size={36} color={colors.mutedForeground} />
             </View>
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
@@ -113,10 +127,11 @@ export default function BookingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
+  header: { paddingHorizontal: 20, paddingBottom: 16 },
+  headerInner: {},
   title: { fontSize: 24, fontFamily: "Inter_700Bold", marginBottom: 16 },
   tabs: { flexDirection: "row", gap: 8 },
-  tab: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
+  tab: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20 },
   tabText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   scroll: { flex: 1 },
   scrollContent: { padding: 16 },

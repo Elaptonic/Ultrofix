@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import React, { useState } from "react";
 import {
@@ -25,6 +26,7 @@ interface BookingCardProps {
 
 export function BookingCard({ booking }: BookingCardProps) {
   const colors = useColors();
+  const isIOS = Platform.OS === "ios";
   const queryClient = useQueryClient();
   const updateBooking = useUpdateBooking({
     mutation: {
@@ -37,29 +39,23 @@ export function BookingCard({ booking }: BookingCardProps) {
   });
   const [localRating, setLocalRating] = useState<number>(booking.rating ?? 0);
 
-  const getStatusColor = () => {
-    switch (booking.status) {
-      case "upcoming":
-        return { bg: "#dbeafe", text: "#3b82f6" };
-      case "completed":
-        return { bg: "#d1fae5", text: "#10b981" };
-      case "cancelled":
-        return { bg: "#fee2e2", text: "#ef4444" };
-    }
+  const statusConfig = {
+    upcoming: { bg: "#dbeafe22", text: "#3b82f6", label: "Upcoming" },
+    completed: { bg: "#d1fae522", text: "#10b981", label: "Completed" },
+    cancelled: { bg: "#fee2e222", text: "#ef4444", label: "Cancelled" },
   };
-  const statusStyle = getStatusColor();
+  const status = statusConfig[booking.status] ?? statusConfig.upcoming;
 
   const handleCancel = () => {
     if (Platform.OS !== "web") {
       Alert.alert("Cancel Booking", "Are you sure you want to cancel?", [
-        { text: "No" },
+        { text: "Keep it" },
         {
           text: "Yes, Cancel",
           style: "destructive",
           onPress: () => {
             updateBooking.mutate({ id: booking.id, data: { status: "cancelled" } });
-            if (Platform.OS !== "web")
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
           },
         },
       ]);
@@ -79,16 +75,13 @@ export function BookingCard({ booking }: BookingCardProps) {
     weekday: "short",
     day: "numeric",
     month: "short",
-    year: "numeric",
   });
 
-  return (
-    <View
-      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
-    >
-      <View style={styles.header}>
+  const CardContent = (
+    <View style={styles.inner}>
+      <View style={styles.topRow}>
         <View style={styles.providerRow}>
-          <View style={[styles.avatar, { backgroundColor: colors.primary + "22" }]}>
+          <View style={[styles.avatar, { backgroundColor: colors.primary + "20" }]}>
             <Text style={[styles.avatarText, { color: colors.primary }]}>
               {booking.providerInitials}
             </Text>
@@ -102,10 +95,8 @@ export function BookingCard({ booking }: BookingCardProps) {
             </Text>
           </View>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-          <Text style={[styles.statusText, { color: statusStyle.text }]}>
-            {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-          </Text>
+        <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
+          <Text style={[styles.statusText, { color: status.text }]}>{status.label}</Text>
         </View>
       </View>
 
@@ -113,13 +104,13 @@ export function BookingCard({ booking }: BookingCardProps) {
 
       <View style={styles.details}>
         <View style={styles.detailRow}>
-          <Feather name="calendar" size={14} color={colors.mutedForeground} />
+          <Feather name="calendar" size={13} color={colors.mutedForeground} />
           <Text style={[styles.detailText, { color: colors.foreground }]}>
             {formattedDate} · {booking.time}
           </Text>
         </View>
         <View style={styles.detailRow}>
-          <Feather name="map-pin" size={14} color={colors.mutedForeground} />
+          <Feather name="map-pin" size={13} color={colors.mutedForeground} />
           <Text
             style={[styles.detailText, { color: colors.foreground }]}
             numberOfLines={1}
@@ -128,7 +119,7 @@ export function BookingCard({ booking }: BookingCardProps) {
           </Text>
         </View>
         <View style={styles.detailRow}>
-          <Feather name="tag" size={14} color={colors.mutedForeground} />
+          <Feather name="tag" size={13} color={colors.mutedForeground} />
           <Text style={[styles.priceText, { color: colors.primary }]}>
             ₹{booking.price}
           </Text>
@@ -145,7 +136,7 @@ export function BookingCard({ booking }: BookingCardProps) {
               <Pressable key={star} onPress={() => handleRate(star)} hitSlop={4}>
                 <Feather
                   name="star"
-                  size={22}
+                  size={24}
                   color={star <= localRating ? "#f59e0b" : colors.border}
                 />
               </Pressable>
@@ -159,7 +150,7 @@ export function BookingCard({ booking }: BookingCardProps) {
           onPress={handleCancel}
           style={({ pressed }) => [
             styles.cancelBtn,
-            { borderColor: colors.destructive },
+            { borderColor: colors.destructive + "60" },
             pressed && { opacity: 0.7 },
           ]}
         >
@@ -170,21 +161,45 @@ export function BookingCard({ booking }: BookingCardProps) {
       )}
     </View>
   );
+
+  return (
+    <View style={[styles.card, { shadowColor: colors.glassShadow }]}>
+      {isIOS ? (
+        <BlurView intensity={50} tint="light" style={styles.blur}>
+          {CardContent}
+        </BlurView>
+      ) : (
+        <View
+          style={[
+            styles.blur,
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+          ]}
+        >
+          {CardContent}
+        </View>
+      )}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
+    borderRadius: 20,
+    overflow: "hidden",
     marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowColor: "#6080c0",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 3,
   },
-  header: {
+  blur: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.6)",
+    borderRadius: 20,
+  },
+  inner: { padding: 16 },
+  topRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
@@ -203,7 +218,7 @@ const styles = StyleSheet.create({
   providerName: { fontSize: 12, marginTop: 2 },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   statusText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  divider: { height: 1, marginVertical: 12 },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: 12 },
   details: { gap: 8 },
   detailRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   detailText: { fontSize: 13, flex: 1 },
@@ -214,7 +229,7 @@ const styles = StyleSheet.create({
   cancelBtn: {
     marginTop: 14,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     alignItems: "center",
   },

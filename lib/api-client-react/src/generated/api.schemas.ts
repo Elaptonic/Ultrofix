@@ -107,6 +107,20 @@ export interface UpsertProfileBody {
   address: string;
 }
 
+export interface Notification {
+  id: number;
+  userId: string;
+  type: string;
+  icon: string;
+  iconColor: string;
+  title: string;
+  body: string;
+  read: boolean;
+  /** @nullable */
+  bookingId?: number | null;
+  createdAt: string;
+}
+
 export type ListServicesParams = {
   category?: string;
 };
@@ -117,4 +131,16 @@ export type ListProvidersParams = {
 
 export type ListBookingsParams = {
   userId?: string;
+};
+
+export type ListNotificationsParams = {
+  userId?: string;
+};
+
+export type MarkAllNotificationsReadBody = {
+  userId: string;
+};
+
+export type MarkAllNotificationsRead200 = {
+  success: boolean;
 };
