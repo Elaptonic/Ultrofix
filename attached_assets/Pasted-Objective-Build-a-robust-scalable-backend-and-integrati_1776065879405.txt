@@ -1,0 +1,46 @@
+Objective: Build a robust, scalable backend and integration layer for an on-demand service marketplace (Urban Company clone) while strictly maintaining the current frontend UI theme and design language.
+
+1. Core Backend Infrastructure:
+
+Environment: Setup a Node.js Express server.
+
+Database: Initialize a PostgreSQL database (via Replit's Postgres tool). Create schemas for Users, Vendors, Services, and Bookings.
+
+Data Persistence: Ensure all booking data is stored with a status lifecycle: PENDING, ACCEPTED, IN_PROGRESS, COMPLETED.
+
+2. Location & Matching Logic:
+
+API Integration: Connect the Google Maps Platform. Use the Distance Matrix API to calculate real-time travel time between vendors and customers.
+
+Matching Algorithm: Implement a "Nearest Available" logic. When a client books, the system must query the database for vendors within a 5km radius who are "Online" and send them a "Lead" notification.
+
+Geospatial Queries: Use PostGIS or standard coordinate math to filter vendors by longitude and latitude.
+
+3. Real-Time & High-Performance Architecture:
+
+WebSockets: Implement Socket.io for real-time communication. This is for the "Live Match" and "Service Tracking" screens (Reference: Uber's Request Flow).
+
+Event Streaming: Implement a Kafka-like architecture using a library like bullmq or Redis to handle the "Driver Assignment Queue." This ensures that if 100 people book at once, the server doesn't crash and leads are distributed fairly.
+
+4. External Integrations:
+
+Payments: Integrate the Stripe API using a "Connect" flow (so you can take a platform fee and pay the vendor).
+
+Security: Implement JWT (JSON Web Tokens) for secure login and protected API routes.
+
+5. Implementation Guardrails:
+
+DO NOT alter the existing CSS, colors, or UI components of the frontend.
+
+DO connect the existing buttons and forms (Booking, Login, Tracking) to the new backend routes.
+
+DO provide a detailed README.md explaining how to add the Google Maps and Stripe API keys in the Replit Secrets (Environment Variables).
+
+What this will do for your Replit project:
+Protects your Design: By explicitly telling it "DO NOT alter CSS," the AI will focus on the hidden "pipes" (the backend) rather than changing your buttons or colors.
+
+Sets up the "Big Tech" Logic: By mentioning Kafka/BullMQ and WebSockets, you are forcing the AI to build a system that can handle growth, rather than a simple "to-do list" style app.
+
+Creates the "Lead" System: It tells the AI exactly how to pick a vendor (Distance Matrix + Proximity), which is the most important part of your business model.
+
+Important Next Step for You:

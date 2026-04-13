@@ -12,12 +12,16 @@ export const bookingsTable = pgTable("bookings", {
   providerInitials: text("provider_initials").notNull(),
   date: text("date").notNull(),
   time: text("time").notNull(),
-  status: text("status", { enum: ["upcoming", "completed", "cancelled"] })
+  status: text("status", {
+    enum: ["pending", "accepted", "in_progress", "completed", "cancelled"],
+  })
     .notNull()
-    .default("upcoming"),
+    .default("pending"),
   price: integer("price").notNull(),
+  platformFee: integer("platform_fee").notNull().default(29),
   address: text("address").notNull(),
   rating: integer("rating"),
+  paymentIntentId: text("payment_intent_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

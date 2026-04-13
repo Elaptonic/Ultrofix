@@ -1,8 +1,42 @@
 import { bookingsTable, db, notificationsTable, providersTable, servicesTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
+import { bookingQueue } from "../lib/queue";
+import { emitToUser } from "../lib/socket";
 
 const router: IRouter = Router();
+
+bookingQueue.process("vendor-assignment", async ({ bookingId, userId, serviceName, providerName }) => {
+  await new Promise((r) => setTimeout(r, 4000));
+  const [updated] = await db
+    .update(bookingsTable)
+    .set({ status: "accepted" })
+    .where(eq(bookingsTable.id, bookingId))
+    .returning();
+  if (!updated) return;
+
+  emitToUser(userId, "booking:status", { bookingId, status: "accepted" });
+
+  await db.insert(notificationsTable).values({
+    userId,
+    type: "booking_accepted",
+    icon: "user-check",
+    iconColor: "#3b82f6",
+    title: "Provider On The Way!",
+    body: `${providerName} has accepted your ${serviceName} booking and will arrive as scheduled.`,
+    read: false,
+    bookingId,
+  });
+});
+
+bookingQueue.process("start-service", async ({ bookingId, userId, serviceName }) => {
+  await new Promise((r) => setTimeout(r, 3000));
+  await db
+    .update(bookingsTable)
+    .set({ status: "in_progress" })
+    .where(eq(bookingsTable.id, bookingId));
+  emitToUser(userId, "booking:status", { bookingId, status: "in_progress" });
+});
 
 router.get("/bookings", async (req, res): Promise<void> => {
   const { userId } = req.query;
@@ -17,7 +51,7 @@ router.get("/bookings", async (req, res): Promise<void> => {
 });
 
 router.post("/bookings", async (req, res): Promise<void> => {
-  const { userId, serviceId, providerId, date, time, address, price } = req.body;
+  const { userId, serviceId, providerId, date, time, address, price, paymentIntentId } = req.body;
   if (!userId || !serviceId || !providerId || !date || !time || !address || price == null) {
     res.status(400).json({ error: "Missing required fields" });
     return;
@@ -50,7 +84,9 @@ router.post("/bookings", async (req, res): Promise<void> => {
       time: String(time),
       address: String(address),
       price: Number(price),
-      status: "upcoming",
+      platformFee: 29,
+      status: "pending",
+      paymentIntentId: paymentIntentId ? String(paymentIntentId) : null,
     })
     .returning();
 
@@ -69,6 +105,15 @@ router.post("/bookings", async (req, res): Promise<void> => {
     read: false,
     bookingId: booking.id,
   });
+
+  emitToUser(String(userId), "booking:status", { bookingId: booking.id, status: "pending" });
+
+  bookingQueue.add("vendor-assignment", {
+    bookingId: booking.id,
+    userId: String(userId),
+    serviceName: service.name,
+    providerName: provider.name,
+  }, { delay: 1000 });
 
   res.status(201).json(booking);
 });
@@ -120,6 +165,8 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  emitToUser(booking.userId, "booking:status", { bookingId: id, status: booking.status });
+
   if (status === "cancelled") {
     await db.insert(notificationsTable).values({
       userId: booking.userId,
@@ -142,6 +189,13 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
       read: false,
       bookingId: booking.id,
     });
+  } else if (status === "in_progress") {
+    bookingQueue.add("start-service", {
+      bookingId: id,
+      userId: booking.userId,
+      serviceName: booking.serviceName,
+      providerName: booking.providerName,
+    }, { delay: 0 });
   }
 
   res.json(booking);

@@ -14,6 +14,9 @@ export const providersTable = pgTable("providers", {
   experience: text("experience").notNull(),
   verified: boolean("verified").notNull().default(true),
   category: text("category").notNull(),
+  latitude: real("latitude").notNull().default(12.9716),
+  longitude: real("longitude").notNull().default(77.5946),
+  isOnline: boolean("is_online").notNull().default(true),
 });
 
 export const insertProviderSchema = createInsertSchema(providersTable).omit({ id: true });
