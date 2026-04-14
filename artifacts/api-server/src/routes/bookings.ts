@@ -1,8 +1,11 @@
-import { bookingsTable, db, notificationsTable, providersTable, servicesTable } from "@workspace/db";
+import { assignNearestProvider, bookingsTable, db, notificationsTable, providersTable, servicesTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { bookingQueue } from "../lib/queue";
-import { emitToUser } from "../lib/socket";
+import { emitToUser, getIO, vendorSockets } from "../lib/socket";
+
+const DEFAULT_LAT = 12.9716;
+const DEFAULT_LNG = 77.5946;
 
 const router: IRouter = Router();
 
@@ -108,12 +111,41 @@ router.post("/bookings", async (req, res): Promise<void> => {
 
   emitToUser(String(userId), "booking:status", { bookingId: booking.id, status: "pending" });
 
-  bookingQueue.add("vendor-assignment", {
-    bookingId: booking.id,
-    userId: String(userId),
-    serviceName: service.name,
-    providerName: provider.name,
-  }, { delay: 1000 });
+  // Attempt real-time dispatch to nearest online vendor
+  const matchResult = await assignNearestProvider(
+    service.category,
+    DEFAULT_LAT,
+    DEFAULT_LNG,
+  );
+
+  let dispatched = false;
+  if (matchResult.success) {
+    const vendorSocketId = vendorSockets.get(matchResult.provider.id);
+    if (vendorSocketId) {
+      getIO()?.to(vendorSocketId).emit("NEW_LEAD", {
+        bookingId: booking.id,
+        serviceName: service.name,
+        category: service.category,
+        providerName: provider.name,
+        date: booking.date,
+        time: booking.time,
+        address: booking.address,
+        price: booking.price,
+        userId: String(userId),
+      });
+      dispatched = true;
+    }
+  }
+
+  // Fallback: queue-based auto-acceptance when no vendor socket is live
+  if (!dispatched) {
+    bookingQueue.add("vendor-assignment", {
+      bookingId: booking.id,
+      userId: String(userId),
+      serviceName: service.name,
+      providerName: provider.name,
+    }, { delay: 1000 });
+  }
 
   res.status(201).json(booking);
 });

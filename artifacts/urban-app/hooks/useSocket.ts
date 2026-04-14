@@ -5,8 +5,26 @@ const SOCKET_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
 export type SocketStatus = "connecting" | "connected" | "disconnected" | "error";
 
-export function useVendorSocket(providerId: number | null) {
+export interface NewLead {
+  bookingId: number;
+  serviceName: string;
+  category: string;
+  providerName: string;
+  date: string;
+  time: string;
+  address: string;
+  price: number;
+  userId: string;
+}
+
+export function useVendorSocket(
+  providerId: number | null,
+  onNewLead?: (lead: NewLead) => void,
+) {
   const socketRef = useRef<Socket | null>(null);
+  const onNewLeadRef = useRef(onNewLead);
+  onNewLeadRef.current = onNewLead;
+
   const [status, setStatus] = useState<SocketStatus>("disconnected");
 
   useEffect(() => {
@@ -29,6 +47,10 @@ export function useVendorSocket(providerId: number | null) {
 
     socket.on("vendor:registered", () => {
       setStatus("connected");
+    });
+
+    socket.on("NEW_LEAD", (lead: NewLead) => {
+      onNewLeadRef.current?.(lead);
     });
 
     socket.on("disconnect", () => {
