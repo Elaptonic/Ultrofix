@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -25,6 +26,7 @@ import { USER_ID } from "@/constants/user";
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const queryClient = useQueryClient();
 
   const { data: profile, isLoading: profileLoading } = useGetProfile(USER_ID);
@@ -156,6 +158,21 @@ export default function ProfileScreen() {
         </View>
 
         <Pressable
+          onPress={() => router.push("/vendor/radar")}
+          style={({ pressed }) => [
+            styles.providerBtn,
+            { backgroundColor: colors.primary + "18", borderColor: colors.primary },
+            pressed && { opacity: 0.75 },
+          ]}
+        >
+          <Feather name="radio" size={18} color={colors.primary} />
+          <Text style={[styles.providerBtnText, { color: colors.primary }]}>
+            Continue as Provider
+          </Text>
+          <Feather name="chevron-right" size={16} color={colors.primary} />
+        </Pressable>
+
+        <Pressable
           style={({ pressed }) => [
             styles.logoutBtn,
             { borderColor: colors.destructive },
@@ -259,6 +276,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   logoutText: { fontSize: 15, fontFamily: "Inter_500Medium" },
+  providerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  providerBtnText: { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold" },
   editSheet: {
     position: "absolute",
     bottom: 0,

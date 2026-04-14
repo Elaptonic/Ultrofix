@@ -41,6 +41,7 @@ function RootLayoutNav() {
       <Stack.Screen name="search" />
       <Stack.Screen name="address" />
       <Stack.Screen name="notifications" />
+      <Stack.Screen name="vendor/radar" />
     </Stack>
   );
 }
