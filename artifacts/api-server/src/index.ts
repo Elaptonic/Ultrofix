@@ -1,5 +1,7 @@
+import { createServer } from "http";
 import app from "./app";
 import { logger } from "./lib/logger";
+import { initSocket } from "./lib/socket";
 import { seedDatabase } from "./lib/seed";
 
 const rawPort = process.env["PORT"];
@@ -16,12 +18,15 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, async (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
+const server = createServer(app);
+initSocket(server);
 
+server.listen(port, async () => {
   logger.info({ port }, "Server listening");
   await seedDatabase();
+});
+
+server.on("error", (err) => {
+  logger.error({ err }, "Server error");
+  process.exit(1);
 });
