@@ -43,7 +43,7 @@ export default function RadarScreen() {
     setCurrentLead(lead);
   }, []);
 
-  const { status } = useVendorSocket(PROVIDER_ID, handleNewLead);
+  const { status, acceptLead, denyLead } = useVendorSocket(PROVIDER_ID, handleNewLead);
 
   const pulse1 = useRef(new Animated.Value(0)).current;
   const pulse2 = useRef(new Animated.Value(0)).current;
@@ -182,7 +182,10 @@ export default function RadarScreen() {
 
             <View style={styles.modalActions}>
               <Pressable
-                onPress={() => setCurrentLead(null)}
+                onPress={() => {
+                  if (currentLead) denyLead(currentLead);
+                  setCurrentLead(null);
+                }}
                 style={({ pressed }) => [
                   styles.denyBtn,
                   { borderColor: colors.border, backgroundColor: colors.muted },
@@ -194,7 +197,10 @@ export default function RadarScreen() {
               </Pressable>
 
               <Pressable
-                onPress={() => setCurrentLead(null)}
+                onPress={() => {
+                  if (currentLead) acceptLead(currentLead);
+                  setCurrentLead(null);
+                }}
                 style={({ pressed }) => [
                   styles.acceptBtn,
                   { backgroundColor: colors.primary },

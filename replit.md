@@ -34,7 +34,15 @@ A fully-featured Urban Company-style home services marketplace mobile app built 
 - Notification center
 - Profile editing (persisted to DB via `useUpsertProfile`)
 
-**Navigation:** 4-tab structure (Home, Bookings, Saved, Profile) + stack screens for service detail, booking, search, category, address, notifications
+**Navigation:** 4-tab structure (Home, Bookings, Saved, Profile) + stack screens for service detail, booking, search, category, address, notifications, vendor/radar
+
+**Vendor Dispatch Loop:**
+- Profile screen has "Continue as Provider" button → opens `/vendor/radar`
+- Radar screen connects via Socket.IO, emits `register-vendor` to go online
+- Server tracks live vendors in `vendorSockets: Map<providerId, socketId>`
+- On new booking: `assignNearestProvider` (haversine in `lib/db/src/matcher.ts`) finds closest online vendor → emits `NEW_LEAD` to their socket
+- If no vendor online: falls back to `bookingQueue` auto-acceptance (4 s delay)
+- Vendor sees Accept/Deny modal; Accept emits `vendor:accept` → server updates booking to `accepted`, pushes `booking:status` to consumer + creates notification; Deny emits `vendor:deny` → re-queues fallback
 
 **Auth:** No auth yet — hardcoded `USER_ID = "default-user"` (see `constants/user.ts`)
 
@@ -47,11 +55,24 @@ Express 5 backend with endpoints:
 - `GET /services` — list services (filterable by `?category=`)
 - `GET /services/:id` — get single service
 - `GET /providers` — list providers (filterable by `?category=`)
+- `GET /providers/match?lat&lng&category&radiusKm` — nearest online providers (haversine)
 - `GET /bookings?userId=` — list bookings for a user
-- `POST /bookings` — create a booking
+- `POST /bookings` — create booking, dispatch to nearest vendor via socket or queue fallback
 - `PATCH /bookings/:id` — update booking status or rating
 - `GET /profile/:userId` — get user profile
 - `PUT /profile/:userId` — upsert user profile
+- `POST /payments/intent` — create Stripe PaymentIntent (requires `STRIPE_SECRET_KEY`)
+
+**Socket.IO** (path `/api/socket.io`):
+- `join(userId)` — consumer joins their notification room
+- `register-vendor(providerId)` — vendor goes online, stored in `vendorSockets`
+- `NEW_LEAD` — emitted to vendor when a matching booking arrives
+- `vendor:accept` — vendor accepts; server updates DB, notifies consumer
+- `vendor:deny` — vendor denies; server queues auto-acceptance fallback
+
+**In-memory queue** (`lib/queue.ts`):
+- `vendor-assignment` — auto-accepts booking after 4 s (used when no vendor is live)
+- `start-service` — transitions booking to `in_progress` after 3 s
 
 Database seeded automatically on server start (idempotent seed via `lib/seed.ts`).
 

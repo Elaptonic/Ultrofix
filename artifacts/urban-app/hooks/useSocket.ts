@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
 const SOCKET_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
@@ -68,5 +68,23 @@ export function useVendorSocket(
     };
   }, [providerId]);
 
-  return { socket: socketRef.current, status };
+  const acceptLead = useCallback((lead: NewLead) => {
+    socketRef.current?.emit("vendor:accept", {
+      bookingId: lead.bookingId,
+      userId: lead.userId,
+      serviceName: lead.serviceName,
+      providerName: lead.providerName,
+    });
+  }, []);
+
+  const denyLead = useCallback((lead: NewLead) => {
+    socketRef.current?.emit("vendor:deny", {
+      bookingId: lead.bookingId,
+      userId: lead.userId,
+      serviceName: lead.serviceName,
+      providerName: lead.providerName,
+    });
+  }, []);
+
+  return { socket: socketRef.current, status, acceptLead, denyLead };
 }
