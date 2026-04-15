@@ -77,7 +77,12 @@ export default function BookingScreen() {
 
   const [selectedDate, setSelectedDate] = useState<string>(DATES[0].value);
   const [selectedTime, setSelectedTime] = useState<string>(TIME_SLOTS[2]);
-  const [confirmed, setConfirmed] = useState(false);
+  const [step, setStep] = useState<"scheduling" | "payment" | "confirmed">("scheduling");
+  const [paymentInfo, setPaymentInfo] = useState<{
+    razorpayOrderId: string | null;
+    razorpayAmount: number | null;
+    razorpayKeyId: string | null;
+  } | null>(null);
 
   if (serviceLoading) {
     return (
@@ -112,11 +117,100 @@ export default function BookingScreen() {
           price: service.startingPrice,
         },
       },
-      { onSuccess: () => setConfirmed(true) }
+      {
+        onSuccess: (data) => {
+          const d = data as typeof data & {
+            razorpayOrderId?: string | null;
+            razorpayAmount?: number | null;
+            razorpayKeyId?: string | null;
+          };
+          setPaymentInfo({
+            razorpayOrderId: d.razorpayOrderId ?? null,
+            razorpayAmount: d.razorpayAmount ?? null,
+            razorpayKeyId: d.razorpayKeyId ?? null,
+          });
+          setStep("payment");
+        },
+      }
     );
   };
 
-  if (confirmed) {
+  if (step === "payment") {
+    const totalRupees = service.startingPrice + 29;
+    const orderId = paymentInfo?.razorpayOrderId;
+    return (
+      <View style={[styles.successContainer, { backgroundColor: colors.background }]}>
+        <View style={[styles.successCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.successIcon, { backgroundColor: "#eff6ff" }]}>
+            <Feather name="credit-card" size={48} color="#3b82f6" />
+          </View>
+          <Text style={[styles.successTitle, { color: colors.foreground }]}>Complete Payment</Text>
+          <Text style={[styles.successSubtitle, { color: colors.mutedForeground }]}>
+            Your booking is reserved. Complete payment to confirm.
+          </Text>
+
+          <View style={[styles.successDetails, { backgroundColor: colors.muted, borderRadius: 12, padding: 16, gap: 10 }]}>
+            <View style={styles.successRow}>
+              <Feather name="briefcase" size={15} color={colors.mutedForeground} />
+              <Text style={[styles.successRowText, { color: colors.foreground }]} numberOfLines={1}>
+                {service.name}
+              </Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Service charge</Text>
+              <Text style={[styles.summaryValue, { color: colors.foreground }]}>₹{service.startingPrice}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Platform fee</Text>
+              <Text style={[styles.summaryValue, { color: colors.foreground }]}>₹29</Text>
+            </View>
+            <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryTotal, { color: colors.foreground }]}>Total</Text>
+              <Text style={[styles.summaryTotalValue, { color: colors.primary }]}>₹{totalRupees}</Text>
+            </View>
+            {orderId && (
+              <View style={styles.successRow}>
+                <Feather name="hash" size={13} color={colors.mutedForeground} />
+                <Text style={[{ fontSize: 11, color: colors.mutedForeground, flex: 1 }]} numberOfLines={1}>
+                  Order: {orderId}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <View style={[styles.sandboxBadge, { backgroundColor: "#fef9c3", borderColor: "#fde047" }]}>
+            <Feather name="info" size={13} color="#a16207" />
+            <Text style={styles.sandboxText}>Demo mode — no real charge</Text>
+          </View>
+
+          <Pressable
+            onPress={() => {
+              queryClient.invalidateQueries({ queryKey: getListBookingsQueryKey({ userId: USER_ID }) });
+              setStep("confirmed");
+            }}
+            style={({ pressed }) => [
+              styles.successBtn,
+              { backgroundColor: "#22c55e" },
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Feather name="check-circle" size={18} color="#fff" />
+            <Text style={styles.successBtnText}>Simulate Payment Success</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setStep("scheduling")}
+            style={({ pressed }) => [styles.homeBtn, pressed && { opacity: 0.7 }]}
+          >
+            <Text style={[styles.homeBtnText, { color: colors.mutedForeground }]}>Cancel</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  if (step === "confirmed") {
     return (
       <View style={[styles.successContainer, { backgroundColor: colors.background }]}>
         <View style={[styles.successCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -433,8 +527,27 @@ const styles = StyleSheet.create({
   successDetails: { width: "100%" },
   successRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   successRowText: { fontSize: 14, flex: 1 },
-  successBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center" },
+  successBtn: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
   successBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  sandboxBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    width: "100%",
+  },
+  sandboxText: { fontSize: 12, color: "#a16207", fontFamily: "Inter_500Medium" },
   homeBtn: { paddingVertical: 8 },
   homeBtnText: { fontSize: 14 },
 });

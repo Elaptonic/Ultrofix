@@ -22,6 +22,7 @@ export const bookingsTable = pgTable("bookings", {
   address: text("address").notNull(),
   rating: integer("rating"),
   paymentIntentId: text("payment_intent_id"),
+  razorpayOrderId: text("razorpay_order_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

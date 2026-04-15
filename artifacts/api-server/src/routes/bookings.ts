@@ -2,6 +2,7 @@ import { assignNearestProvider, bookingsTable, db, notificationsTable, providers
 import { and, eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { bookingQueue } from "../lib/queue";
+import { RAZORPAY_KEY_ID, createRazorpayOrder } from "../lib/razorpay";
 import { emitToUser, getIO, vendorSockets } from "../lib/socket";
 
 const DEFAULT_LAT = 12.9716;
@@ -111,6 +112,18 @@ router.post("/bookings", async (req, res): Promise<void> => {
 
   emitToUser(String(userId), "booking:status", { bookingId: booking.id, status: "pending" });
 
+  // Create Razorpay order (no-op when keys are not set)
+  const rzpOrder = await createRazorpayOrder(
+    booking.price + booking.platformFee,
+    `booking_${booking.id}`,
+  );
+  if (rzpOrder) {
+    await db
+      .update(bookingsTable)
+      .set({ razorpayOrderId: rzpOrder.id })
+      .where(eq(bookingsTable.id, booking.id));
+  }
+
   // Attempt real-time dispatch to nearest online vendor
   const matchResult = await assignNearestProvider(
     service.category,
@@ -147,7 +160,12 @@ router.post("/bookings", async (req, res): Promise<void> => {
     }, { delay: 1000 });
   }
 
-  res.status(201).json(booking);
+  res.status(201).json({
+    ...booking,
+    razorpayOrderId: rzpOrder?.id ?? null,
+    razorpayAmount: rzpOrder?.amount ?? null,
+    razorpayKeyId: RAZORPAY_KEY_ID,
+  });
 });
 
 router.get("/bookings/:id", async (req, res): Promise<void> => {
