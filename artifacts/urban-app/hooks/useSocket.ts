@@ -17,6 +17,42 @@ export interface NewLead {
   userId: string;
 }
 
+export interface BookingStatusEvent {
+  bookingId: number;
+  status: string;
+}
+
+export function useConsumerSocket(
+  userId: string | null,
+  onBookingStatus?: (event: BookingStatusEvent) => void,
+) {
+  const onStatusRef = useRef(onBookingStatus);
+  onStatusRef.current = onBookingStatus;
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const socket = io(SOCKET_URL, {
+      path: "/api/socket.io",
+      transports: ["polling", "websocket"],
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
+    });
+
+    socket.on("connect", () => {
+      socket.emit("join", userId);
+    });
+
+    socket.on("booking:status", (event: BookingStatusEvent) => {
+      onStatusRef.current?.(event);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [userId]);
+}
+
 export function useVendorSocket(
   providerId: number | null,
   onNewLead?: (lead: NewLead) => void,
