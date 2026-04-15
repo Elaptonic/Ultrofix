@@ -15,7 +15,7 @@ import { useListBookings } from "@workspace/api-client-react";
 
 import { BookingCard } from "@/components/BookingCard";
 import { useColors } from "@/hooks/useColors";
-import { USER_ID } from "@/constants/user";
+import { useUserId } from "@/constants/user";
 
 const TABS = ["Upcoming", "Completed", "Cancelled"] as const;
 type Tab = typeof TABS[number];
@@ -25,8 +25,9 @@ export default function BookingsScreen() {
   const insets = useSafeAreaInsets();
   const isIOS = Platform.OS === "ios";
   const [activeTab, setActiveTab] = useState<Tab>("Upcoming");
+  const userId = useUserId();
 
-  const { data: bookings, isLoading } = useListBookings({ userId: USER_ID });
+  const { data: bookings, isLoading } = useListBookings({ userId });
 
   const filteredBookings = (bookings ?? []).filter((b) => {
     if (activeTab === "Upcoming") return b.status === "upcoming";

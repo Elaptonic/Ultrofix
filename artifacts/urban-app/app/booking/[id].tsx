@@ -22,7 +22,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
-import { USER_ID } from "@/constants/user";
+import { useUserId } from "@/constants/user";
 
 const TIME_SLOTS = [
   "08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM",
@@ -52,6 +52,7 @@ export default function BookingScreen() {
   const router = useRouter();
   const { selectedAddress } = useApp();
   const queryClient = useQueryClient();
+  const userId = useUserId();
 
   const serviceId = parseInt(id ?? "0", 10);
   const providerIdNum = parseInt(providerId ?? "0", 10);
@@ -69,7 +70,7 @@ export default function BookingScreen() {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: getListBookingsQueryKey({ userId: USER_ID }),
+          queryKey: getListBookingsQueryKey({ userId }),
         });
       },
     },
@@ -108,7 +109,7 @@ export default function BookingScreen() {
     createBooking.mutate(
       {
         data: {
-          userId: USER_ID,
+          userId,
           serviceId: service.id,
           providerId: provider.id,
           date: selectedDate,
@@ -186,7 +187,7 @@ export default function BookingScreen() {
 
           <Pressable
             onPress={() => {
-              queryClient.invalidateQueries({ queryKey: getListBookingsQueryKey({ userId: USER_ID }) });
+              queryClient.invalidateQueries({ queryKey: getListBookingsQueryKey({ userId }) });
               setStep("confirmed");
             }}
             style={({ pressed }) => [

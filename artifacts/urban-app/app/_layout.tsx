@@ -8,7 +8,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { setBaseUrl } from "@workspace/api-client-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -17,6 +17,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
+import { AuthProvider, useAuth } from "@/context/auth";
 
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 
@@ -31,18 +32,61 @@ const queryClient = new QueryClient({
   },
 });
 
+function AuthGate() {
+  const { user, isLoading, isAuthenticated } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const inAuthGroup = segments[0] === "login" || segments[0] === "role-select";
+    const inProviderGroup = segments[0] === "vendor";
+    const inTabGroup = segments[0] === "(tabs)";
+
+    if (!isAuthenticated) {
+      if (!inAuthGroup) {
+        router.replace("/login");
+      }
+      return;
+    }
+
+    if (!user?.role) {
+      if (segments[0] !== "role-select") {
+        router.replace("/role-select");
+      }
+      return;
+    }
+
+    if (inAuthGroup) {
+      if (user.role === "provider") {
+        router.replace("/vendor/radar");
+      } else {
+        router.replace("/(tabs)");
+      }
+    }
+  }, [isLoading, isAuthenticated, user, segments, router]);
+
+  return null;
+}
+
 function RootLayoutNav() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="service/[id]" />
-      <Stack.Screen name="booking/[id]" />
-      <Stack.Screen name="category/[id]" />
-      <Stack.Screen name="search" />
-      <Stack.Screen name="address" />
-      <Stack.Screen name="notifications" />
-      <Stack.Screen name="vendor/radar" />
-    </Stack>
+    <>
+      <AuthGate />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="login" options={{ animation: "fade" }} />
+        <Stack.Screen name="role-select" options={{ animation: "fade" }} />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="service/[id]" />
+        <Stack.Screen name="booking/[id]" />
+        <Stack.Screen name="category/[id]" />
+        <Stack.Screen name="search" />
+        <Stack.Screen name="address" />
+        <Stack.Screen name="notifications" />
+        <Stack.Screen name="vendor/radar" />
+      </Stack>
+    </>
   );
 }
 
@@ -67,13 +111,15 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <AppProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <KeyboardProvider>
-                <RootLayoutNav />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          </AppProvider>
+          <AuthProvider>
+            <AppProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <KeyboardProvider>
+                  <RootLayoutNav />
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </AppProvider>
+          </AuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

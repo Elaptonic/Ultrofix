@@ -44,14 +44,34 @@ A fully-featured Urban Company-style home services marketplace mobile app built 
 - If no vendor online: falls back to `bookingQueue` auto-acceptance (4 s delay)
 - Vendor sees Accept/Deny modal; Accept emits `vendor:accept` → server updates booking to `accepted`, pushes `booking:status` to consumer + creates notification; Deny emits `vendor:deny` → re-queues fallback
 
-**Auth:** No auth yet — hardcoded `USER_ID = "default-user"` (see `constants/user.ts`)
+**Auth:** Replit Auth (OpenID Connect + PKCE) via `expo-auth-session`. Dual-role system:
+- **Consumer** — books services, sees home/bookings/saved/profile tabs
+- **Provider** — accepts job leads via WebSocket radar screen
+- `AuthProvider` in `context/auth.tsx` wraps the app; `useAuth()` exposes `user`, `login`, `logout`, `setRole`
+- `useUserId()` hook in `constants/user.ts` returns the authenticated user's ID (falls back to `"default-user"` if not logged in)
+- Login screen → role-select screen → role-gated navigation (consumer→tabs, provider→radar)
+- Users can switch roles from the Profile screen
+- Auth state persisted in `expo-secure-store` (mobile bearer token)
 
-**Storage:** AsyncStorage for saved services and selected address. Profile stored in DB via API.
+**Storage:** AsyncStorage for saved services and selected address. Profile stored in DB via API. Auth token stored in `expo-secure-store`.
 
 **Design:** Orange (#f97316) primary color, Inter fonts, mobile-native UI patterns
 
 ### API Server (`artifacts/api-server`)
-Express 5 backend with endpoints:
+Express 5 backend with Replit Auth (OpenID Connect + PKCE). Auth middleware (`authMiddleware.ts`) loads user from PostgreSQL session on every request.
+
+Auth endpoints:
+- `GET /auth/user` — returns current authenticated user (with role)
+- `GET /login` — starts OIDC browser flow
+- `GET /callback` — OIDC callback, creates session, sets cookie
+- `GET /logout` — clears session, redirects to OIDC logout
+- `POST /mobile-auth/token-exchange` — exchanges mobile OIDC code for bearer token
+- `POST /mobile-auth/logout` — deletes mobile session
+- `PATCH /auth/role` — sets user role (`consumer` | `provider`)
+
+DB schema: `sessions` table (PostgreSQL session store) + `users` table with `role` column.
+
+Service endpoints:
 - `GET /services` — list services (filterable by `?category=`)
 - `GET /services/:id` — get single service
 - `GET /providers` — list providers (filterable by `?category=`)

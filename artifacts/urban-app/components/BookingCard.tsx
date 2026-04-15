@@ -18,7 +18,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useColors } from "@/hooks/useColors";
-import { USER_ID } from "@/constants/user";
+import { useUserId } from "@/constants/user";
 
 interface BookingCardProps {
   booking: Booking;
@@ -28,11 +28,12 @@ export function BookingCard({ booking }: BookingCardProps) {
   const colors = useColors();
   const isIOS = Platform.OS === "ios";
   const queryClient = useQueryClient();
+  const userId = useUserId();
   const updateBooking = useUpdateBooking({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: getListBookingsQueryKey({ userId: USER_ID }),
+          queryKey: getListBookingsQueryKey({ userId }),
         });
       },
     },

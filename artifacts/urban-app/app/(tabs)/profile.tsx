@@ -21,16 +21,19 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useColors } from "@/hooks/useColors";
-import { USER_ID } from "@/constants/user";
+import { useUserId } from "@/constants/user";
+import { useAuth } from "@/context/auth";
 
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const userId = useUserId();
+  const { logout, user, setRole } = useAuth();
 
-  const { data: profile, isLoading: profileLoading } = useGetProfile(USER_ID);
-  const { data: bookings } = useListBookings({ userId: USER_ID });
+  const { data: profile, isLoading: profileLoading } = useGetProfile(userId);
+  const { data: bookings } = useListBookings({ userId });
   const upsertProfile = useUpsertProfile();
 
   const [editing, setEditing] = useState(false);
@@ -61,7 +64,7 @@ export default function ProfileScreen() {
 
   const handleSave = () => {
     upsertProfile.mutate(
-      { userId: USER_ID, data: { name, email, phone, address: profile?.address ?? "" } },
+      { userId, data: { name, email, phone, address: profile?.address ?? "" } },
       {
         onSuccess: () => {
           if (Platform.OS !== "web")
@@ -157,22 +160,40 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        <Pressable
-          onPress={() => router.push("/vendor/radar")}
-          style={({ pressed }) => [
-            styles.providerBtn,
-            { backgroundColor: colors.primary + "18", borderColor: colors.primary },
-            pressed && { opacity: 0.75 },
-          ]}
-        >
-          <Feather name="radio" size={18} color={colors.primary} />
-          <Text style={[styles.providerBtnText, { color: colors.primary }]}>
-            Continue as Provider
-          </Text>
-          <Feather name="chevron-right" size={16} color={colors.primary} />
-        </Pressable>
+        {user?.role === "consumer" ? (
+          <Pressable
+            onPress={async () => { await setRole("provider"); router.replace("/vendor/radar"); }}
+            style={({ pressed }) => [
+              styles.providerBtn,
+              { backgroundColor: colors.primary + "18", borderColor: colors.primary },
+              pressed && { opacity: 0.75 },
+            ]}
+          >
+            <Feather name="briefcase" size={18} color={colors.primary} />
+            <Text style={[styles.providerBtnText, { color: colors.primary }]}>
+              Switch to Provider Mode
+            </Text>
+            <Feather name="chevron-right" size={16} color={colors.primary} />
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={async () => { await setRole("consumer"); router.replace("/(tabs)"); }}
+            style={({ pressed }) => [
+              styles.providerBtn,
+              { backgroundColor: colors.primary + "18", borderColor: colors.primary },
+              pressed && { opacity: 0.75 },
+            ]}
+          >
+            <Feather name="search" size={18} color={colors.primary} />
+            <Text style={[styles.providerBtnText, { color: colors.primary }]}>
+              Switch to Consumer Mode
+            </Text>
+            <Feather name="chevron-right" size={16} color={colors.primary} />
+          </Pressable>
+        )}
 
         <Pressable
+          onPress={logout}
           style={({ pressed }) => [
             styles.logoutBtn,
             { borderColor: colors.destructive },
@@ -180,7 +201,7 @@ export default function ProfileScreen() {
           ]}
         >
           <Feather name="log-out" size={18} color={colors.destructive} />
-          <Text style={[styles.logoutText, { color: colors.destructive }]}>Log Out</Text>
+          <Text style={[styles.logoutText, { color: colors.destructive }]}>Sign Out</Text>
         </Pressable>
       </ScrollView>
 

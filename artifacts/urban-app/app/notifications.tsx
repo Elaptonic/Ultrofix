@@ -21,7 +21,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useColors } from "@/hooks/useColors";
-import { USER_ID } from "@/constants/user";
+import { useUserId } from "@/constants/user";
 
 export default function NotificationsScreen() {
   const colors = useColors();
@@ -29,14 +29,15 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const isIOS = Platform.OS === "ios";
+  const userId = useUserId();
 
-  const { data: notifications, isLoading } = useListNotifications({ userId: USER_ID });
+  const { data: notifications, isLoading } = useListNotifications({ userId });
 
   const markRead = useMarkNotificationRead({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: getListNotificationsQueryKey({ userId: USER_ID }),
+          queryKey: getListNotificationsQueryKey({ userId }),
         });
       },
     },
@@ -46,7 +47,7 @@ export default function NotificationsScreen() {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({
-          queryKey: getListNotificationsQueryKey({ userId: USER_ID }),
+          queryKey: getListNotificationsQueryKey({ userId }),
         });
       },
     },
@@ -55,7 +56,7 @@ export default function NotificationsScreen() {
   const unreadCount = (notifications ?? []).filter((n) => !n.read).length;
 
   const handleMarkAll = () => {
-    markAllRead.mutate({ data: { userId: USER_ID } });
+    markAllRead.mutate({ data: { userId } });
   };
 
   const handleMarkRead = (id: number) => {

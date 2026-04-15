@@ -121,6 +121,79 @@ export interface Notification {
   createdAt: string;
 }
 
+/**
+ * @nullable
+ */
+export type AuthUserRole =
+  | (typeof AuthUserRole)[keyof typeof AuthUserRole]
+  | null;
+
+export const AuthUserRole = {
+  consumer: "consumer",
+  provider: "provider",
+} as const;
+
+export interface AuthUser {
+  id: string;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  firstName?: string | null;
+  /** @nullable */
+  lastName?: string | null;
+  /** @nullable */
+  profileImageUrl?: string | null;
+  /** @nullable */
+  role?: AuthUserRole;
+}
+
+export interface AuthUserEnvelope {
+  user: AuthUser | null;
+}
+
+export interface MobileTokenExchangeRequest {
+  /** @minLength 1 */
+  code: string;
+  /** @minLength 1 */
+  code_verifier: string;
+  /** @minLength 1 */
+  redirect_uri: string;
+  /** @minLength 1 */
+  state: string;
+  /** @minLength 1 */
+  nonce?: string;
+}
+
+export interface MobileTokenExchangeSuccess {
+  token: string;
+}
+
+export const LogoutSuccessValue = {
+  success: true,
+} as const;
+export type LogoutSuccess = typeof LogoutSuccessValue;
+
+export interface ErrorEnvelope {
+  error: string;
+}
+
+export type SetRoleBodyRole =
+  (typeof SetRoleBodyRole)[keyof typeof SetRoleBodyRole];
+
+export const SetRoleBodyRole = {
+  consumer: "consumer",
+  provider: "provider",
+} as const;
+
+export interface SetRoleBody {
+  role: SetRoleBodyRole;
+}
+
+/**
+ * Bearer token for mobile session auth.
+ */
+export type AuthorizationSessionHeaderParameter = string;
+
 export type ListServicesParams = {
   category?: string;
 };
@@ -143,4 +216,14 @@ export type MarkAllNotificationsReadBody = {
 
 export type MarkAllNotificationsRead200 = {
   success: boolean;
+};
+
+export type BeginBrowserLoginParams = {
+  returnTo?: string;
+};
+
+export type HandleBrowserLoginCallbackParams = {
+  code?: string;
+  state?: string;
+  iss?: string;
 };

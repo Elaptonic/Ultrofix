@@ -26,7 +26,7 @@ import { CategoryCard } from "@/components/CategoryCard";
 import { ProviderCard } from "@/components/ProviderCard";
 import { ServiceCard } from "@/components/ServiceCard";
 import { CATEGORIES } from "@/constants/data";
-import { USER_ID } from "@/constants/user";
+import { useUserId } from "@/constants/user";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -37,10 +37,11 @@ export default function HomeScreen() {
   const { selectedAddress } = useApp();
   const scrollY = useRef(new Animated.Value(0)).current;
   const isIOS = Platform.OS === "ios";
+  const userId = useUserId();
 
   const { data: services, isLoading: servicesLoading } = useListServices();
   const { data: providers, isLoading: providersLoading } = useListProviders();
-  const { data: notifications } = useListNotifications({ userId: USER_ID });
+  const { data: notifications } = useListNotifications({ userId });
 
   const popularServices = services?.filter((s) => s.popular) ?? [];
   const unreadCount = (notifications ?? []).filter((n) => !n.read).length;
