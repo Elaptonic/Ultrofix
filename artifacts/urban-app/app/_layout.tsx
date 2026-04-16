@@ -41,8 +41,6 @@ function AuthGate() {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === "login" || segments[0] === "role-select";
-    const inProviderGroup = segments[0] === "vendor";
-    const inTabGroup = segments[0] === "(tabs)";
 
     if (!isAuthenticated) {
       if (!inAuthGroup) {
@@ -60,7 +58,7 @@ function AuthGate() {
 
     if (inAuthGroup) {
       if (user.role === "provider") {
-        router.replace("/vendor/radar");
+        router.replace("/vendor/(tabs)/dashboard");
       } else {
         router.replace("/(tabs)");
       }
@@ -84,7 +82,7 @@ function RootLayoutNav() {
         <Stack.Screen name="search" />
         <Stack.Screen name="address" />
         <Stack.Screen name="notifications" />
-        <Stack.Screen name="vendor/radar" />
+        <Stack.Screen name="vendor" />
       </Stack>
     </>
   );

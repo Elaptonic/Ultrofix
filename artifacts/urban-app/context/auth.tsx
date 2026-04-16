@@ -9,12 +9,14 @@ import React, {
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 WebBrowser.maybeCompleteAuthSession();
 
 const AUTH_TOKEN_KEY = "auth_session_token";
 const ISSUER_URL = "https://replit.com/oidc";
+const IS_WEB = Platform.OS === "web";
 
 export type UserRole = "consumer" | "provider" | null;
 
@@ -56,7 +58,9 @@ function getClientId(): string {
   return process.env.EXPO_PUBLIC_REPL_ID || "";
 }
 
-setAuthTokenGetter(() => SecureStore.getItemAsync(AUTH_TOKEN_KEY));
+setAuthTokenGetter(() =>
+  IS_WEB ? Promise.resolve(null) : SecureStore.getItemAsync(AUTH_TOKEN_KEY),
+);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -77,17 +81,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUser = useCallback(async () => {
     try {
-      const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
-      if (!token) {
-        setUser(null);
-        setIsLoading(false);
-        return;
+      const apiBase = getApiBaseUrl();
+
+      let fetchOptions: RequestInit;
+      if (IS_WEB) {
+        fetchOptions = { credentials: "include" };
+      } else {
+        const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+        if (!token) {
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
+        fetchOptions = { headers: { Authorization: `Bearer ${token}` } };
       }
 
-      const apiBase = getApiBaseUrl();
-      const res = await fetch(`${apiBase}/api/auth/user`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(`${apiBase}/api/auth/user`, fetchOptions);
       const data = await res.json();
 
       if (data.user) {
@@ -100,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: (data.user.role as UserRole) ?? null,
         });
       } else {
-        await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+        if (!IS_WEB) await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
         setUser(null);
       }
     } catch {
@@ -115,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchUser]);
 
   useEffect(() => {
+    if (IS_WEB) return;
     if (response?.type !== "success" || !request?.codeVerifier) return;
 
     const { code, state } = response.params;
@@ -122,25 +132,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         const apiBase = getApiBaseUrl();
-        if (!apiBase) {
-          console.error("API base URL is not configured.");
-          return;
-        }
+        if (!apiBase) return;
 
-        const exchangeRes = await fetch(`${apiBase}/api/mobile-auth/token-exchange`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            code,
-            code_verifier: request.codeVerifier,
-            redirect_uri: redirectUri,
-            state,
-            nonce: request.nonce,
-          }),
-        });
+        const exchangeRes = await fetch(
+          `${apiBase}/api/mobile-auth/token-exchange`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              code,
+              code_verifier: request.codeVerifier,
+              redirect_uri: redirectUri,
+              state,
+              nonce: request.nonce,
+            }),
+          },
+        );
 
         if (!exchangeRes.ok) {
-          console.error("Token exchange failed:", exchangeRes.status);
           setIsLoading(false);
           return;
         }
@@ -151,14 +160,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsLoading(true);
           await fetchUser();
         }
-      } catch (err) {
-        console.error("Token exchange error:", err);
+      } catch {
         setIsLoading(false);
       }
     })();
   }, [response, request, redirectUri, fetchUser]);
 
   const login = useCallback(async () => {
+    if (IS_WEB) {
+      const apiBase = getApiBaseUrl();
+      const returnTo = typeof window !== "undefined" ? window.location.href : "/";
+      window.location.href = `${apiBase}/api/login?returnTo=${encodeURIComponent(returnTo)}`;
+      return;
+    }
     try {
       await promptAsync();
     } catch (err) {
@@ -168,9 +182,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
+      const apiBase = getApiBaseUrl();
+      if (IS_WEB) {
+        await fetch(`${apiBase}/api/mobile-auth/logout`, {
+          method: "POST",
+          credentials: "include",
+        });
+        setUser(null);
+        return;
+      }
       const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
       if (token) {
-        const apiBase = getApiBaseUrl();
         await fetch(`${apiBase}/api/mobile-auth/logout`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
@@ -178,34 +200,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch {
     } finally {
-      await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+      if (!IS_WEB) await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
       setUser(null);
     }
   }, []);
 
   const setRole = useCallback(async (role: "consumer" | "provider") => {
     try {
-      const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
-      if (!token) return;
-
       const apiBase = getApiBaseUrl();
-      const res = await fetch(`${apiBase}/api/auth/role`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ role }),
-      });
+      let fetchOptions: RequestInit;
 
-      if (!res.ok) {
-        console.error("Failed to set role:", res.status);
-        return;
+      if (IS_WEB) {
+        fetchOptions = {
+          credentials: "include",
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role }),
+        };
+      } else {
+        const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+        if (!token) return;
+        fetchOptions = {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ role }),
+        };
       }
+
+      const res = await fetch(`${apiBase}/api/auth/role`, fetchOptions);
+      if (!res.ok) return;
 
       const data = await res.json();
       if (data.user) {
-        setUser((prev) => prev ? { ...prev, role } : null);
+        setUser((prev) => (prev ? { ...prev, role } : null));
       }
     } catch (err) {
       console.error("Set role error:", err);

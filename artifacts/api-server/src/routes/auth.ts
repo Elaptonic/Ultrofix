@@ -56,10 +56,13 @@ function setOidcCookie(res: Response, name: string, value: string) {
 }
 
 function getSafeReturnTo(value: unknown): string {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
-    return "/";
-  }
-  return value;
+  if (typeof value !== "string") return "/";
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+  try {
+    const url = new URL(value);
+    if (url.protocol === "https:") return value;
+  } catch {}
+  return "/";
 }
 
 async function upsertUser(claims: Record<string, unknown>) {
