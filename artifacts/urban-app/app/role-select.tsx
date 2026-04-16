@@ -32,7 +32,7 @@ export default function RoleSelectScreen() {
       <View style={styles.inner}>
         <View style={styles.header}>
           <Text style={styles.greeting}>Welcome{name}!</Text>
-          <Text style={styles.subtitle}>How will you use Urban Company?</Text>
+          <Text style={styles.subtitle}>How will you use Ultrofix?</Text>
           <Text style={styles.hint}>You can switch roles later from your profile</Text>
         </View>
 

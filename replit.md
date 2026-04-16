@@ -18,9 +18,9 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ## Artifacts
 
-### Urban Company Mobile App (`artifacts/urban-app`)
+### Ultrofix Mobile App (`artifacts/urban-app`)
 
-A fully-featured Urban Company-style home services marketplace mobile app built with Expo/React Native. Backed by a real Express + Drizzle + PostgreSQL API.
+A fully-featured Ultrofix-style home services marketplace mobile app built with Expo/React Native. Backed by a real Express + Drizzle + PostgreSQL API.
 
 **Features:**
 - Home screen with hero banner, service categories, popular services, top providers (real API data)

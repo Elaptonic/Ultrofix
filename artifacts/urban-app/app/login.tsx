@@ -28,7 +28,7 @@ export default function LoginScreen() {
           <View style={styles.logoContainer}>
             <Feather name="home" size={48} color="#fff" />
           </View>
-          <Text style={styles.appName}>Urban Company</Text>
+          <Text style={styles.appName}>Ultrofix</Text>
           <Text style={styles.tagline}>Professional home services at your doorstep</Text>
         </View>
 

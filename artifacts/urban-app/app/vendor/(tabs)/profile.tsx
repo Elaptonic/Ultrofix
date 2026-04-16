@@ -128,7 +128,7 @@ export default function VendorProfileScreen() {
             {displayName}
           </Text>
           <Text style={[styles.profileEmail, { color: colors.mutedForeground }]}>
-            {user?.email ?? "provider@urbancompany.com"}
+            {user?.email ?? "provider@ultrofix.com"}
           </Text>
           <View style={styles.badgeRow}>
             <View
