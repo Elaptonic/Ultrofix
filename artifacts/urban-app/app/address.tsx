@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LocationTracker } from "@/components/LocationTracker";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
-const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
+const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
 const SAVED_ADDRESSES = [
   { id: "1", label: "Home", address: "123 MG Road, Bangalore 560001", icon: "home" },
@@ -60,14 +60,15 @@ export default function AddressScreen() {
 
   const searchPlaces = async (query: string) => {
     setCustomAddress(query);
-    if (!GOOGLE_MAPS_API_KEY || query.trim().length < 3) {
+    if (query.trim().length < 3) {
       setPlaceResults([]);
       return;
     }
     setSearchingPlaces(true);
     try {
       const res = await fetch(
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${GOOGLE_MAPS_API_KEY}&components=country:in`,
+        `${API_BASE}/api/places/autocomplete?input=${encodeURIComponent(query.trim())}`,
+        { credentials: "include" },
       );
       const data = await res.json();
       setPlaceResults((data.predictions ?? []).map((item: any) => ({ place_id: item.place_id, description: item.description })));

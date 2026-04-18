@@ -4,6 +4,7 @@ import bookingsRouter from "./bookings";
 import healthRouter from "./health";
 import notificationsRouter from "./notifications";
 import paymentsRouter from "./payments";
+import placesRouter from "./places";
 import profileRouter from "./profile";
 import providersRouter from "./providers";
 import servicesRouter from "./services";
@@ -18,5 +19,6 @@ router.use(bookingsRouter);
 router.use(profileRouter);
 router.use(notificationsRouter);
 router.use(paymentsRouter);
+router.use(placesRouter);
 
 export default router;

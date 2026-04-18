@@ -12,7 +12,7 @@ import { useColors } from "@/hooks/useColors";
 import { useUserId } from "@/constants/user";
 import { useAuth } from "@/context/auth";
 
-const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
+const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
 type PlaceResult = {
   place_id: string;
@@ -83,7 +83,7 @@ export default function ProfileScreen() {
   const searchPlaces = async (query: string) => {
     setAddress(query);
     setSelectedPlace(null);
-    if (!GOOGLE_MAPS_API_KEY || query.trim().length < 3) {
+    if (query.trim().length < 3) {
       setPlaceResults([]);
       return;
     }
@@ -91,7 +91,8 @@ export default function ProfileScreen() {
     setSearchingPlaces(true);
     try {
       const res = await fetch(
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${GOOGLE_MAPS_API_KEY}&components=country:in`,
+        `${API_BASE}/api/places/autocomplete?input=${encodeURIComponent(query.trim())}`,
+        { credentials: "include" },
       );
       const data = await res.json();
       setPlaceResults((data.predictions ?? []).map((item: any) => ({ place_id: item.place_id, description: item.description })));
