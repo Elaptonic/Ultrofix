@@ -36,6 +36,7 @@ interface AuthContextValue {
   login: () => Promise<void>;
   logout: () => Promise<void>;
   setRole: (role: "consumer" | "provider") => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -45,6 +46,7 @@ const AuthContext = createContext<AuthContextValue>({
   login: async () => {},
   logout: async () => {},
   setRole: async () => {},
+  refreshUser: async () => {},
 });
 
 function getApiBaseUrl(): string {
@@ -118,6 +120,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     }
   }, []);
+
+  const refreshUser = useCallback(async () => {
+    setIsLoading(true);
+    await fetchUser();
+  }, [fetchUser]);
 
   useEffect(() => {
     fetchUser();
@@ -251,6 +258,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         setRole,
+        refreshUser,
       }}
     >
       {children}

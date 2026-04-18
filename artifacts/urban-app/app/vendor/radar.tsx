@@ -108,7 +108,7 @@ export default function RadarScreen() {
       ]}
     >
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
+        <Pressable onPress={() => router.replace("/vendor/(tabs)/dashboard")} style={styles.backBtn} hitSlop={12}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Provider Radar</Text>
@@ -129,84 +129,48 @@ export default function RadarScreen() {
         </View>
       </View>
 
-      <View style={[styles.statusCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={[styles.statusCard, { backgroundColor: colors.card, borderColor: colors.border }]}> 
         <View style={[styles.statusDot, { backgroundColor: dotColor }]} />
-        <Text style={[styles.statusText, { color: colors.foreground }]}>
-          {STATUS_LABEL[status]}
-        </Text>
+        <Text style={[styles.statusText, { color: colors.foreground }]}> {STATUS_LABEL[status]} </Text>
       </View>
 
-      <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-        You will receive job requests here when consumers book your service.
-      </Text>
+      <Text style={[styles.hint, { color: colors.mutedForeground }]}>You will receive job requests here when consumers book your service.</Text>
 
-      <Modal
-        visible={currentLead !== null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setCurrentLead(null)}
-      >
+      <Modal visible={currentLead !== null} transparent animationType="slide" onRequestClose={() => setCurrentLead(null)}>
         <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card }]}> 
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-
             <View style={[styles.leadBadge, { backgroundColor: colors.primary + "18" }]}>
               <Feather name="zap" size={16} color={colors.primary} />
               <Text style={[styles.leadBadgeText, { color: colors.primary }]}>New Job Request</Text>
             </View>
-
-            <Text style={[styles.leadService, { color: colors.foreground }]}>
-              {currentLead?.serviceName}
-            </Text>
-
+            <Text style={[styles.leadService, { color: colors.foreground }]}>{currentLead?.serviceName}</Text>
             <View style={styles.leadRows}>
               <View style={styles.leadRow}>
                 <Feather name="calendar" size={14} color={colors.mutedForeground} />
-                <Text style={[styles.leadRowText, { color: colors.mutedForeground }]}>
-                  {currentLead?.date} · {currentLead?.time}
-                </Text>
+                <Text style={[styles.leadRowText, { color: colors.mutedForeground }]}>{currentLead?.date} · {currentLead?.time}</Text>
               </View>
               <View style={styles.leadRow}>
                 <Feather name="map-pin" size={14} color={colors.mutedForeground} />
-                <Text style={[styles.leadRowText, { color: colors.mutedForeground }]} numberOfLines={2}>
-                  {currentLead?.address}
-                </Text>
+                <Text style={[styles.leadRowText, { color: colors.mutedForeground }]} numberOfLines={2}>{currentLead?.address}</Text>
               </View>
               <View style={styles.leadRow}>
                 <Feather name="credit-card" size={14} color={colors.mutedForeground} />
-                <Text style={[styles.leadRowText, { color: colors.foreground }]}>
-                  ₹{currentLead?.price}
-                </Text>
+                <Text style={[styles.leadRowText, { color: colors.foreground }]}>₹{currentLead?.price}</Text>
               </View>
             </View>
-
             <View style={styles.modalActions}>
-              <Pressable
-                onPress={() => {
-                  if (currentLead) denyLead(currentLead);
-                  setCurrentLead(null);
-                }}
-                style={({ pressed }) => [
-                  styles.denyBtn,
-                  { borderColor: colors.border, backgroundColor: colors.muted },
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
+              <Pressable onPress={() => {
+                if (currentLead) denyLead(currentLead);
+                setCurrentLead(null);
+              }} style={({ pressed }) => [styles.denyBtn, { borderColor: colors.border, backgroundColor: colors.muted }, pressed && { opacity: 0.7 }] }>
                 <Feather name="x" size={18} color={colors.mutedForeground} />
                 <Text style={[styles.denyBtnText, { color: colors.mutedForeground }]}>Deny</Text>
               </Pressable>
-
-              <Pressable
-                onPress={() => {
-                  if (currentLead) acceptLead(currentLead);
-                  setCurrentLead(null);
-                }}
-                style={({ pressed }) => [
-                  styles.acceptBtn,
-                  { backgroundColor: colors.primary },
-                  pressed && { opacity: 0.85 },
-                ]}
-              >
+              <Pressable onPress={() => {
+                if (currentLead) acceptLead(currentLead);
+                setCurrentLead(null);
+              }} style={({ pressed }) => [styles.acceptBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }] }>
                 <Feather name="check" size={18} color="#fff" />
                 <Text style={styles.acceptBtnText}>Accept</Text>
               </Pressable>
@@ -220,120 +184,28 @@ export default function RadarScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14 },
   backBtn: { padding: 4 },
   headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  radarWrap: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 48,
-    marginBottom: 48,
-    height: 260,
-  },
-  ring: {
-    position: "absolute",
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 2,
-  },
-  centerDot: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  statusCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginHorizontal: 24,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 16,
-  },
+  radarWrap: { alignItems: "center", justifyContent: "center", marginTop: 48, marginBottom: 48, height: 260 },
+  ring: { position: "absolute", width: 120, height: 120, borderRadius: 60, borderWidth: 2 },
+  centerDot: { width: 88, height: 88, borderRadius: 44, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 8 },
+  statusCard: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 24, paddingHorizontal: 20, paddingVertical: 16, borderRadius: 14, borderWidth: 1, marginBottom: 16 },
   statusDot: { width: 10, height: 10, borderRadius: 5 },
   statusText: { fontSize: 15, fontFamily: "Inter_500Medium" },
-  hint: {
-    textAlign: "center",
-    paddingHorizontal: 36,
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 20,
-  },
-  modalBackdrop: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.45)",
-  },
-  modalCard: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 12,
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    gap: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 20,
-  },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: 4,
-  },
-  leadBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
+  hint: { textAlign: "center", paddingHorizontal: 36, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  modalBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
+  modalCard: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 12, paddingHorizontal: 24, paddingBottom: 40, gap: 16, shadowColor: "#000", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 20 },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
+  leadBadge: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   leadBadgeText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   leadService: { fontSize: 22, fontFamily: "Inter_700Bold" },
   leadRows: { gap: 10 },
   leadRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   leadRowText: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
   modalActions: { flexDirection: "row", gap: 12, marginTop: 4 },
-  denyBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 15,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
+  denyBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 15, borderRadius: 14, borderWidth: 1 },
   denyBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  acceptBtn: {
-    flex: 2,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 15,
-    borderRadius: 14,
-  },
+  acceptBtn: { flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 15, borderRadius: 14 },
   acceptBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
 });
