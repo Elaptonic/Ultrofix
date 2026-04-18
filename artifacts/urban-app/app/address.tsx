@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LocationTracker } from "@/components/LocationTracker";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 
 const SAVED_ADDRESSES = [
   { id: "1", label: "Home", address: "123 MG Road, Bangalore 560001", icon: "home" },
@@ -31,6 +32,8 @@ export default function AddressScreen() {
   const { selectedAddress, setSelectedAddress } = useApp();
   const [customAddress, setCustomAddress] = useState("");
   const [liveAddress, setLiveAddress] = useState<string | null>(null);
+  const [placeResults, setPlaceResults] = useState<Array<{ place_id: string; description: string }>>([]);
+  const [searchingPlaces, setSearchingPlaces] = useState(false);
 
   const handleSelect = (address: string) => {
     setSelectedAddress(address);
@@ -52,6 +55,26 @@ export default function AddressScreen() {
     if (formatted) {
       setCustomAddress(formatted);
       setLiveAddress(formatted);
+    }
+  };
+
+  const searchPlaces = async (query: string) => {
+    setCustomAddress(query);
+    if (!GOOGLE_MAPS_API_KEY || query.trim().length < 3) {
+      setPlaceResults([]);
+      return;
+    }
+    setSearchingPlaces(true);
+    try {
+      const res = await fetch(
+        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${GOOGLE_MAPS_API_KEY}&components=country:in`,
+      );
+      const data = await res.json();
+      setPlaceResults((data.predictions ?? []).map((item: any) => ({ place_id: item.place_id, description: item.description })));
+    } catch {
+      setPlaceResults([]);
+    } finally {
+      setSearchingPlaces(false);
     }
   };
 
@@ -100,6 +123,34 @@ export default function AddressScreen() {
           } catch {
           }
         }} />
+
+        <View style={[styles.searchBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="search" size={16} color={colors.mutedForeground} />
+          <TextInput
+            value={customAddress}
+            onChangeText={searchPlaces}
+            placeholder="Search Google locations..."
+            placeholderTextColor={colors.mutedForeground}
+            style={[styles.searchInput, { color: colors.foreground }]}
+          />
+        </View>
+        {searchingPlaces && <Text style={[styles.searchHint, { color: colors.mutedForeground }]}>Searching locations…</Text>}
+        {!!placeResults.length && (
+          <View style={[styles.resultsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {placeResults.map((place) => (
+              <Pressable
+                key={place.place_id}
+                onPress={() => handleSelect(place.description)}
+                style={({ pressed }) => [styles.resultRow, pressed && { opacity: 0.75 }]}
+              >
+                <Feather name="map-pin" size={16} color={colors.primary} />
+                <Text style={[styles.resultText, { color: colors.foreground }]} numberOfLines={2}>
+                  {place.description}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
 
         <Pressable
           onPress={fillFromCurrentLocation}
@@ -208,6 +259,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   currentBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  searchBox: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 12, borderWidth: 1 },
+  searchInput: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
+  searchHint: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: -2 },
+  resultsCard: { borderWidth: 1, borderRadius: 14, overflow: "hidden" },
+  resultRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#00000010" },
+  resultText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", lineHeight: 18 },
   liveCard: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 14, padding: 14 },
   liveText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", lineHeight: 18 },
   addressCard: { flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 14, borderWidth: 1.5, gap: 12 },
