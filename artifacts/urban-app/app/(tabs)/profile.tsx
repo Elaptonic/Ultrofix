@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useGetProfile, useUpsertProfile, useListBookings } from "@workspace/api-client-react";
@@ -11,6 +12,13 @@ import { LocationTracker } from "@/components/LocationTracker";
 import { useColors } from "@/hooks/useColors";
 import { useUserId } from "@/constants/user";
 import { useAuth } from "@/context/auth";
+
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
+
+type PlaceResult = {
+  place_id: string;
+  description: string;
+};
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -28,12 +36,16 @@ export default function ProfileScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [placeResults, setPlaceResults] = useState<PlaceResult[]>([]);
+  const [searchingPlaces, setSearchingPlaces] = useState(false);
 
   useEffect(() => {
     if (profile) {
       setName(profile.name);
       setEmail(profile.email);
       setPhone(profile.phone);
+      setAddress(profile.address ?? "");
     }
   }, [profile]);
 
@@ -56,8 +68,45 @@ export default function ProfileScreen() {
   };
 
   const handleSave = () => {
-    upsertProfile.mutate({ userId, data: { name, email, phone, address: profile?.address ?? "" } }, { onSuccess: () => { if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); setEditing(false); } });
+    upsertProfile.mutate(
+      { userId, data: { name, email, phone, address } },
+      {
+        onSuccess: () => {
+          if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setEditing(false);
+        },
+      },
+    );
   };
+
+  const searchPlaces = async (query: string) => {
+    setAddress(query);
+    if (!GOOGLE_MAPS_API_KEY || query.trim().length < 3) {
+      setPlaceResults([]);
+      return;
+    }
+
+    setSearchingPlaces(true);
+    try {
+      const res = await fetch(
+        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${GOOGLE_MAPS_API_KEY}&components=country:in`,
+      );
+      const data = await res.json();
+      setPlaceResults((data.predictions ?? []).map((item: any) => ({ place_id: item.place_id, description: item.description })));
+    } catch {
+      setPlaceResults([]);
+    } finally {
+      setSearchingPlaces(false);
+    }
+  };
+
+  const selectPlace = (place: PlaceResult) => {
+    setAddress(place.description);
+    setPlaceResults([]);
+    if (Platform.OS !== "web") Haptics.selectionAsync();
+  };
+
+  const addressPreview = useMemo(() => address || profile?.address || "Add your address", [address, profile?.address]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -71,7 +120,7 @@ export default function ProfileScreen() {
         <Pressable onPress={logout} style={({ pressed }) => [styles.logoutBtn, { borderColor: colors.destructive }, pressed && { opacity: 0.7 }]}><Feather name="log-out" size={18} color={colors.destructive} /><Text style={[styles.logoutText, { color: colors.destructive }]}>Sign Out</Text></Pressable>
       </ScrollView>
 
-      {editing && <View style={[styles.editSheet, { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: insets.bottom + 20 }]}><View style={styles.editHeader}><Text style={[styles.editTitle, { color: colors.foreground }]}>Edit Profile</Text><Pressable onPress={() => setEditing(false)}><Feather name="x" size={22} color={colors.mutedForeground} /></Pressable></View>{[{ label: "Name", value: name, setter: setName }, { label: "Email", value: email, setter: setEmail }, { label: "Phone", value: phone, setter: setPhone }].map(({ label, value, setter }) => <View key={label} style={styles.inputGroup}><Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>{label}</Text><TextInput value={value} onChangeText={setter} style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]} placeholderTextColor={colors.mutedForeground} /></View>)}<Pressable onPress={handleSave} disabled={upsertProfile.isPending} style={({ pressed }) => [styles.saveBtn, { backgroundColor: colors.primary }, (pressed || upsertProfile.isPending) && { opacity: 0.75 }]}>{upsertProfile.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Save Changes</Text>}</Pressable></View>}
+      {editing && <View style={[styles.editSheet, { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: insets.bottom + 20 }]}><View style={styles.editHeader}><Text style={[styles.editTitle, { color: colors.foreground }]}>Edit Profile</Text><Pressable onPress={() => setEditing(false)}><Feather name="x" size={22} color={colors.mutedForeground} /></Pressable></View><View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Name</Text><TextInput value={name} onChangeText={setName} style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]} placeholderTextColor={colors.mutedForeground} /></View><View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Email</Text><TextInput value={email} onChangeText={setEmail} style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]} placeholderTextColor={colors.mutedForeground} /></View><View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Phone</Text><TextInput value={phone} onChangeText={setPhone} style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]} placeholderTextColor={colors.mutedForeground} /></View><View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Address</Text><View style={[styles.searchBox, { backgroundColor: colors.muted, borderColor: colors.border }]}><Feather name="search" size={16} color={colors.mutedForeground} /><TextInput value={address} onChangeText={searchPlaces} placeholder="Search Google locations..." placeholderTextColor={colors.mutedForeground} style={[styles.searchInput, { color: colors.foreground }]} /></View></View>{searchingPlaces && <Text style={[styles.searchHint, { color: colors.mutedForeground }]}>Searching locations…</Text>}{placeResults.length > 0 && <View style={[styles.resultsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>{placeResults.map((place) => <Pressable key={place.place_id} onPress={() => selectPlace(place)} style={({ pressed }) => [styles.resultRow, pressed && { opacity: 0.75 }]}><Feather name="map-pin" size={16} color={colors.primary} /><Text style={[styles.resultText, { color: colors.foreground }]} numberOfLines={2}>{place.description}</Text></Pressable>)}</View>}<View style={[styles.previewCard, { backgroundColor: colors.accent, borderColor: colors.border }]}><Feather name="map-pin" size={16} color={colors.primary} /><Text style={[styles.previewText, { color: colors.foreground }]} numberOfLines={2}>{addressPreview}</Text></View><Pressable onPress={handleSave} disabled={upsertProfile.isPending} style={({ pressed }) => [styles.saveBtn, { backgroundColor: colors.primary }, (pressed || upsertProfile.isPending) && { opacity: 0.75 }]}>{upsertProfile.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Save Changes</Text>}</Pressable></View>}
     </View>
   );
 }
@@ -105,6 +154,14 @@ const styles = StyleSheet.create({
   inputGroup: { gap: 6 },
   inputLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
   input: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, fontFamily: "Inter_400Regular" },
+  searchBox: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  searchInput: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
+  searchHint: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  resultsCard: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
+  resultRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#00000012" },
+  resultText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", lineHeight: 18 },
+  previewCard: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, borderWidth: 1, padding: 12 },
+  previewText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", lineHeight: 18 },
   saveBtn: { paddingVertical: 14, borderRadius: 12, alignItems: "center", marginTop: 4 },
   saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
 });
