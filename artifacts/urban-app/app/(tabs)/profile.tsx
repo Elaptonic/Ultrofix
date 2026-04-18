@@ -1,6 +1,5 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -39,6 +38,7 @@ export default function ProfileScreen() {
   const [address, setAddress] = useState("");
   const [placeResults, setPlaceResults] = useState<PlaceResult[]>([]);
   const [searchingPlaces, setSearchingPlaces] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile) {
@@ -46,6 +46,7 @@ export default function ProfileScreen() {
       setEmail(profile.email);
       setPhone(profile.phone);
       setAddress(profile.address ?? "");
+      setSelectedPlace(profile.address ?? null);
     }
   }, [profile]);
 
@@ -81,6 +82,7 @@ export default function ProfileScreen() {
 
   const searchPlaces = async (query: string) => {
     setAddress(query);
+    setSelectedPlace(null);
     if (!GOOGLE_MAPS_API_KEY || query.trim().length < 3) {
       setPlaceResults([]);
       return;
@@ -100,16 +102,19 @@ export default function ProfileScreen() {
     }
   };
 
-  const selectPlace = (place: PlaceResult) => {
+  const selectPlace = async (place: PlaceResult) => {
     setAddress(place.description);
+    setSelectedPlace(place.description);
     setPlaceResults([]);
     if (Platform.OS !== "web") Haptics.selectionAsync();
+    await upsertProfile.mutateAsync({ userId, data: { name, email, phone, address: place.description } });
+    await queryClient.invalidateQueries({ queryKey: ["profile", userId] as any });
   };
 
-  const addressPreview = useMemo(() => address || profile?.address || "Add your address", [address, profile?.address]);
+  const addressPreview = useMemo(() => selectedPlace || address || profile?.address || "Add your address", [selectedPlace, address, profile?.address]);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}> 
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) + 16, paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 100 }]} showsVerticalScrollIndicator={false}>
         {profileLoading ? <ActivityIndicator color={colors.primary} style={{ paddingTop: 40 }} /> : <><View style={[styles.profileCard, { backgroundColor: colors.card, borderColor: colors.border }]}><View style={[styles.avatar, { backgroundColor: colors.primary + "22" }]}><Text style={[styles.avatarText, { color: colors.primary }]}>{initials}</Text></View><View style={styles.profileInfo}><Text style={[styles.profileName, { color: colors.foreground }]}>{displayName}</Text><Text style={[styles.profileEmail, { color: colors.mutedForeground }]}>{displayEmail}</Text><Text style={[styles.profilePhone, { color: colors.mutedForeground }]}>{displayPhone}</Text></View><Pressable onPress={() => setEditing(true)} style={[styles.editBtn, { backgroundColor: colors.muted }]}><Feather name="edit-2" size={16} color={colors.primary} /></Pressable></View><LocationTracker compact /><View style={styles.statsRow}>{[{ label: "Bookings", value: (bookings ?? []).length }, { label: "Completed", value: completedBookings }, { label: "Saved", value: 0 }].map(({ label, value }) => <View key={label} style={[styles.statBox, { backgroundColor: colors.card, borderColor: colors.border }]}><Text style={[styles.statValue, { color: colors.primary }]}>{value}</Text><Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{label}</Text></View>)}</View></>}
 
