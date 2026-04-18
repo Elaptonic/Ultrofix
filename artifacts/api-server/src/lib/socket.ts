@@ -8,6 +8,22 @@ import { bookingQueue } from "./queue";
 let io: SocketIOServer | null = null;
 
 export const vendorSockets = new Map<number, string>();
+const pendingLeadTimers = new Map<number, ReturnType<typeof setTimeout>>();
+
+export function clearPendingLead(bookingId: number) {
+  const timer = pendingLeadTimers.get(bookingId);
+  if (timer) clearTimeout(timer);
+  pendingLeadTimers.delete(bookingId);
+}
+
+export function markPendingLead(bookingId: number, timeoutMs: number, onExpire: () => void) {
+  clearPendingLead(bookingId);
+  const timer = setTimeout(() => {
+    pendingLeadTimers.delete(bookingId);
+    onExpire();
+  }, timeoutMs);
+  pendingLeadTimers.set(bookingId, timer);
+}
 
 export function initSocket(server: HttpServer) {
   io = new SocketIOServer(server, {
@@ -47,6 +63,7 @@ export function initSocket(server: HttpServer) {
             .where(eq(bookingsTable.id, bookingId))
             .returning();
           if (!updated) return;
+          clearPendingLead(bookingId);
 
           emitToUser(userId, "booking:status", { bookingId, status: "accepted" });
 
@@ -77,6 +94,7 @@ export function initSocket(server: HttpServer) {
         providerName: string;
       }) => {
         const { bookingId, userId, serviceName, providerName } = payload;
+        clearPendingLead(bookingId);
         bookingQueue.add("vendor-assignment", {
           bookingId,
           userId,
