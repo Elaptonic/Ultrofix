@@ -3,10 +3,11 @@ import { and, eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { bookingQueue } from "../lib/queue";
 import { RAZORPAY_KEY_ID, createRazorpayOrder } from "../lib/razorpay";
-import { emitToUser, getIO, vendorSockets } from "../lib/socket";
+import { clearPendingLead, emitToUser, getIO, markPendingLead, vendorSockets } from "../lib/socket";
 
 const DEFAULT_LAT = 12.9716;
 const DEFAULT_LNG = 77.5946;
+const LEAD_TIMEOUT_MS = 30000;
 
 const router: IRouter = Router();
 
@@ -125,17 +126,12 @@ router.post("/bookings", async (req, res): Promise<void> => {
   }
 
   // Attempt real-time dispatch to nearest online vendor
-  const matchResult = await assignNearestProvider(
-    service.category,
-    DEFAULT_LAT,
-    DEFAULT_LNG,
-  );
+  const matchResult = await assignNearestProvider(service.category, DEFAULT_LAT, DEFAULT_LNG);
 
-  let dispatched = false;
   if (matchResult.success) {
     const vendorSocketId = vendorSockets.get(matchResult.provider.id);
     if (vendorSocketId) {
-      getIO()?.to(vendorSocketId).emit("NEW_LEAD", {
+      const leadPayload = {
         bookingId: booking.id,
         serviceName: service.name,
         category: service.category,
@@ -145,13 +141,32 @@ router.post("/bookings", async (req, res): Promise<void> => {
         address: booking.address,
         price: booking.price,
         userId: String(userId),
+        providerId: matchResult.provider.id,
+        distanceKm: matchResult.distanceKm,
+      };
+      getIO()?.to(vendorSocketId).emit("NEW_LEAD", leadPayload);
+      markPendingLead(booking.id, LEAD_TIMEOUT_MS, () => {
+        bookingQueue.add(
+          "vendor-assignment",
+          {
+            bookingId: booking.id,
+            userId: String(userId),
+            serviceName: service.name,
+            providerName: provider.name,
+          },
+          { delay: 0 },
+        );
       });
-      dispatched = true;
+    } else {
+      clearPendingLead(booking.id);
+      bookingQueue.add("vendor-assignment", {
+        bookingId: booking.id,
+        userId: String(userId),
+        serviceName: service.name,
+        providerName: provider.name,
+      });
     }
-  }
-
-  // Fallback: queue-based auto-acceptance when no vendor socket is live
-  if (!dispatched) {
+  } else {
     bookingQueue.add("vendor-assignment", {
       bookingId: booking.id,
       userId: String(userId),

@@ -15,6 +15,8 @@ export interface NewLead {
   address: string;
   price: number;
   userId: string;
+  providerId?: number;
+  distanceKm?: number;
 }
 
 export interface BookingStatusEvent {
