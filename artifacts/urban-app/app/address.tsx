@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -13,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { LocationTracker } from "@/components/LocationTracker";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -28,11 +30,29 @@ export default function AddressScreen() {
   const router = useRouter();
   const { selectedAddress, setSelectedAddress } = useApp();
   const [customAddress, setCustomAddress] = useState("");
+  const [liveAddress, setLiveAddress] = useState<string | null>(null);
 
   const handleSelect = (address: string) => {
     setSelectedAddress(address);
     if (Platform.OS !== "web") Haptics.selectionAsync();
     router.back();
+  };
+
+  const fillFromCurrentLocation = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") return;
+    const current = await Location.getCurrentPositionAsync({});
+    const [result] = await Location.reverseGeocodeAsync({
+      latitude: current.coords.latitude,
+      longitude: current.coords.longitude,
+    });
+    const formatted = [result?.name, result?.street, result?.district, result?.city, result?.postalCode]
+      .filter(Boolean)
+      .join(", ");
+    if (formatted) {
+      setCustomAddress(formatted);
+      setLiveAddress(formatted);
+    }
   };
 
   return (
@@ -50,9 +70,7 @@ export default function AddressScreen() {
         <Pressable onPress={() => router.back()}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
-        <Text style={[styles.title, { color: colors.foreground }]}>
-          Select Address
-        </Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>Select Address</Text>
         <View style={{ width: 22 }} />
       </View>
 
@@ -66,9 +84,43 @@ export default function AddressScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-          Saved Addresses
-        </Text>
+        <LocationTracker compact onLocationUpdate={async () => {
+          try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== "granted") return;
+            const current = await Location.getCurrentPositionAsync({});
+            const [result] = await Location.reverseGeocodeAsync({
+              latitude: current.coords.latitude,
+              longitude: current.coords.longitude,
+            });
+            const formatted = [result?.name, result?.street, result?.district, result?.city, result?.postalCode]
+              .filter(Boolean)
+              .join(", ");
+            if (formatted) setLiveAddress(formatted);
+          } catch {
+          }
+        }} />
+
+        <Pressable
+          onPress={fillFromCurrentLocation}
+          style={({ pressed }) => [
+            styles.currentBtn,
+            { backgroundColor: colors.primary },
+            pressed && { opacity: 0.85 },
+          ]}
+        >
+          <Feather name="navigation" size={16} color="#fff" />
+          <Text style={styles.currentBtnText}>Use current location</Text>
+        </Pressable>
+
+        {liveAddress ? (
+          <View style={[styles.liveCard, { backgroundColor: colors.accent, borderColor: colors.primary }]}>
+            <Feather name="map-pin" size={16} color={colors.primary} />
+            <Text style={[styles.liveText, { color: colors.foreground }]} numberOfLines={2}>{liveAddress}</Text>
+          </View>
+        ) : null}
+
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Saved Addresses</Text>
         {SAVED_ADDRESSES.map((addr) => (
           <Pressable
             key={addr.id}
@@ -76,10 +128,8 @@ export default function AddressScreen() {
             style={({ pressed }) => [
               styles.addressCard,
               {
-                backgroundColor:
-                  selectedAddress === addr.address ? colors.accent : colors.card,
-                borderColor:
-                  selectedAddress === addr.address ? colors.primary : colors.border,
+                backgroundColor: selectedAddress === addr.address ? colors.accent : colors.card,
+                borderColor: selectedAddress === addr.address ? colors.primary : colors.border,
               },
               pressed && { opacity: 0.85 },
             ]}
@@ -88,29 +138,19 @@ export default function AddressScreen() {
               style={[
                 styles.addrIcon,
                 {
-                  backgroundColor:
-                    selectedAddress === addr.address ? colors.primary + "22" : colors.muted,
+                  backgroundColor: selectedAddress === addr.address ? colors.primary + "22" : colors.muted,
                 },
               ]}
             >
               <Feather
                 name={addr.icon as any}
                 size={18}
-                color={
-                  selectedAddress === addr.address
-                    ? colors.primary
-                    : colors.mutedForeground
-                }
+                color={selectedAddress === addr.address ? colors.primary : colors.mutedForeground}
               />
             </View>
             <View style={styles.addrInfo}>
-              <Text style={[styles.addrLabel, { color: colors.foreground }]}>
-                {addr.label}
-              </Text>
-              <Text
-                style={[styles.addrText, { color: colors.mutedForeground }]}
-                numberOfLines={2}
-              >
+              <Text style={[styles.addrLabel, { color: colors.foreground }]}>{addr.label}</Text>
+              <Text style={[styles.addrText, { color: colors.mutedForeground }]} numberOfLines={2}>
                 {addr.address}
               </Text>
             </View>
@@ -120,17 +160,8 @@ export default function AddressScreen() {
           </Pressable>
         ))}
 
-        <Text
-          style={[styles.sectionTitle, { color: colors.foreground, marginTop: 12 }]}
-        >
-          Enter Custom Address
-        </Text>
-        <View
-          style={[
-            styles.inputRow,
-            { backgroundColor: colors.card, borderColor: colors.border },
-          ]}
-        >
+        <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 12 }]}>Enter Custom Address</Text>
+        <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Feather name="map-pin" size={18} color={colors.primary} />
           <TextInput
             value={customAddress}
@@ -144,11 +175,7 @@ export default function AddressScreen() {
         {customAddress.length > 5 && (
           <Pressable
             onPress={() => handleSelect(customAddress)}
-            style={({ pressed }) => [
-              styles.useBtn,
-              { backgroundColor: colors.primary },
-              pressed && { opacity: 0.85 },
-            ]}
+            style={({ pressed }) => [styles.useBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
           >
             <Text style={styles.useBtnText}>Use this address</Text>
           </Pressable>
@@ -159,9 +186,7 @@ export default function AddressScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -170,72 +195,28 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     borderBottomWidth: 1,
   },
-  title: {
-    fontSize: 17,
-    fontFamily: "Inter_600SemiBold",
-  },
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    padding: 20,
-    gap: 10,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-    marginBottom: 4,
-  },
-  addressCard: {
+  title: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  scroll: { flex: 1 },
+  content: { padding: 20, gap: 10 },
+  sectionTitle: { fontSize: 16, fontFamily: "Inter_700Bold", marginBottom: 4 },
+  currentBtn: {
     flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    gap: 12,
-  },
-  addrIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-  },
-  addrInfo: {
-    flex: 1,
-  },
-  addrLabel: {
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-  },
-  addrText: {
-    fontSize: 13,
-    marginTop: 2,
-    lineHeight: 18,
-  },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    gap: 10,
-  },
-  input: {
-    flex: 1,
-    fontSize: 15,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 22,
-    maxHeight: 100,
-  },
-  useBtn: {
-    paddingVertical: 14,
+    gap: 8,
+    paddingVertical: 13,
     borderRadius: 12,
-    alignItems: "center",
   },
-  useBtnText: {
-    color: "#fff",
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-  },
+  currentBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  liveCard: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 14, padding: 14 },
+  liveText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", lineHeight: 18 },
+  addressCard: { flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 14, borderWidth: 1.5, gap: 12 },
+  addrIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  addrInfo: { flex: 1 },
+  addrLabel: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  addrText: { fontSize: 13, marginTop: 2, lineHeight: 18 },
+  inputRow: { flexDirection: "row", alignItems: "flex-start", padding: 14, borderRadius: 14, borderWidth: 1, gap: 10 },
+  input: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22, maxHeight: 100 },
+  useBtn: { paddingVertical: 14, borderRadius: 12, alignItems: "center" },
+  useBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });
