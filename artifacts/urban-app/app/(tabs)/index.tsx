@@ -155,18 +155,12 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-              Our Services
-            </Text>
-            <Pressable onPress={() => router.push("/search")}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Our Services</Text>
+            <Pressable onPress={() => router.push("/search") }>
               <Text style={[styles.seeAll, { color: colors.primary }]}>See all</Text>
             </Pressable>
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoryList}
-          >
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList}>
             {CATEGORIES.map((cat) => (
               <CategoryCard key={cat.id} {...cat} />
             ))}
@@ -175,21 +169,15 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-              Popular Services
-            </Text>
-            <Pressable onPress={() => router.push("/search")}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Popular Services</Text>
+            <Pressable onPress={() => router.push("/search") }>
               <Text style={[styles.seeAll, { color: colors.primary }]}>See all</Text>
             </Pressable>
           </View>
           {servicesLoading ? (
             <ActivityIndicator color={colors.primary} style={{ paddingLeft: 20, paddingVertical: 20 }} />
           ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.serviceList}
-            >
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.serviceList}>
               {popularServices.map((service) => (
                 <ServiceCard key={service.id} {...service} image={service.imageKey} />
               ))}
@@ -199,18 +187,12 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-              Top Professionals
-            </Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Top Professionals</Text>
           </View>
           {providersLoading ? (
             <ActivityIndicator color={colors.primary} style={{ paddingLeft: 20, paddingVertical: 20 }} />
           ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.providerList}
-            >
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.providerList}>
               {(providers ?? []).map((provider) => (
                 <ProviderCard key={provider.id} provider={provider} />
               ))}
@@ -219,7 +201,7 @@ export default function HomeScreen() {
         </View>
 
         <View style={[styles.whySection, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-          <Text style={[styles.whyTitle, { color: colors.foreground }]}>Why choose Urban?</Text>
+          <Text style={[styles.whyTitle, { color: colors.foreground }]}>Why choose Ultrofix?</Text>
           {[
             { icon: "shield", title: "Verified Professionals", desc: "Background-checked & trained" },
             { icon: "clock", title: "On-time Guarantee", desc: "Punctual or we refund" },
@@ -245,9 +227,7 @@ function SearchContent({ colors, router }: { colors: any; router: any }) {
   return (
     <Pressable style={styles.searchInner} onPress={() => router.push("/search")}>
       <Feather name="search" size={18} color={colors.mutedForeground} />
-      <Text style={[styles.searchPlaceholder, { color: colors.mutedForeground }]}>
-        Search for services...
-      </Text>
+      <Text style={[styles.searchPlaceholder, { color: colors.mutedForeground }]}>Search for services...</Text>
     </Pressable>
   );
 }
