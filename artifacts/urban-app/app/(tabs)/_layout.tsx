@@ -27,11 +27,7 @@ export default function TabLayout() {
         },
         tabBarBackground: () =>
           isIOS ? (
-            <BlurView
-              intensity={80}
-              tint="light"
-              style={StyleSheet.absoluteFill}
-            />
+            <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} />
           ) : isWeb ? (
             <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(255,255,255,0.95)" }]} />
           ) : (
@@ -47,36 +43,28 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="home" size={size ?? 22} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <Feather name="grid" size={size ?? 22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="bookings"
         options={{
           title: "Bookings",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="calendar" size={size ?? 22} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <Feather name="calendar" size={size ?? 22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="saved"
         options={{
           title: "Saved",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="heart" size={size ?? 22} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <Feather name="heart" size={size ?? 22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="user" size={size ?? 22} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <Feather name="user" size={size ?? 22} color={color} />,
         }}
       />
     </Tabs>
