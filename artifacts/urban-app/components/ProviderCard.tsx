@@ -1,5 +1,4 @@
 import { Icon as Feather } from "@/components/Icon";
-import { BlurView } from "expo-blur";
 import React from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
@@ -12,79 +11,66 @@ interface ProviderCardProps {
 
 export function ProviderCard({ provider }: ProviderCardProps) {
   const colors = useColors();
-  const isIOS = Platform.OS === "ios";
 
   const avatarColors = [
     "#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899",
   ];
   const avatarColor = avatarColors[provider.id % avatarColors.length];
 
-  const Inner = (
-    <View style={styles.inner}>
-      <View style={[styles.avatar, { backgroundColor: avatarColor + "20" }]}>
-        <Text style={[styles.avatarText, { color: avatarColor }]}>
-          {provider.initials}
-        </Text>
-      </View>
-      {provider.verified && (
-        <View style={[styles.verifiedBadge, { backgroundColor: "#d1fae5" }]}>
-          <Feather name="check-circle" size={10} color="#10b981" />
-          <Text style={[styles.verifiedText, { color: "#10b981" }]}>Verified</Text>
-        </View>
-      )}
-      <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
-        {provider.name}
-      </Text>
-      <View style={styles.ratingRow}>
-        <Feather name="star" size={12} color="#f59e0b" />
-        <Text style={[styles.rating, { color: colors.foreground }]}>
-          {provider.rating}
-        </Text>
-        <Text style={[styles.reviews, { color: colors.mutedForeground }]}>
-          ({provider.reviewCount})
-        </Text>
-      </View>
-      <View style={styles.statsRow}>
-        <View style={styles.stat}>
-          <Text style={[styles.statValue, { color: colors.foreground }]}>
-            {provider.jobsCompleted.toLocaleString()}
-          </Text>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Jobs</Text>
-        </View>
-        <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-        <View style={styles.stat}>
-          <Text style={[styles.statValue, { color: colors.foreground }]}>
-            {provider.experience}
-          </Text>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Exp.</Text>
-        </View>
-      </View>
-      <View style={styles.tags}>
-        {provider.specializations.slice(0, 2).map((spec) => (
-          <View key={spec} style={[styles.tag, { backgroundColor: colors.primary + "14" }]}>
-            <Text style={[styles.tagText, { color: colors.primary }]}>{spec}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-
   return (
-    <View style={styles.card}>
-      {isIOS ? (
-        <BlurView intensity={50} tint="light" style={styles.blur}>
-          {Inner}
-        </BlurView>
-      ) : (
-        <View
-          style={[
-            styles.blur,
-            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-          ]}
-        >
-          {Inner}
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: colors.card, borderColor: colors.border },
+      ]}
+    >
+      <View style={styles.inner}>
+        <View style={[styles.avatar, { backgroundColor: avatarColor + "20" }]}>
+          <Text style={[styles.avatarText, { color: avatarColor }]}>
+            {provider.initials}
+          </Text>
         </View>
-      )}
+        {provider.verified && (
+          <View style={[styles.verifiedBadge, { backgroundColor: "#d1fae5" }]}>
+            <Feather name="check-circle" size={10} color="#10b981" />
+            <Text style={[styles.verifiedText, { color: "#10b981" }]}>Verified</Text>
+          </View>
+        )}
+        <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
+          {provider.name}
+        </Text>
+        <View style={styles.ratingRow}>
+          <Feather name="star" size={12} color="#f59e0b" />
+          <Text style={[styles.rating, { color: colors.foreground }]}>
+            {provider.rating}
+          </Text>
+          <Text style={[styles.reviews, { color: colors.mutedForeground }]}>
+            ({provider.reviewCount})
+          </Text>
+        </View>
+        <View style={styles.statsRow}>
+          <View style={styles.stat}>
+            <Text style={[styles.statValue, { color: colors.foreground }]}>
+              {provider.jobsCompleted.toLocaleString()}
+            </Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Jobs</Text>
+          </View>
+          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+          <View style={styles.stat}>
+            <Text style={[styles.statValue, { color: colors.foreground }]}>
+              {provider.experience}
+            </Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Exp.</Text>
+          </View>
+        </View>
+        <View style={styles.tags}>
+          {provider.specializations.slice(0, 2).map((spec) => (
+            <View key={spec} style={[styles.tag, { backgroundColor: colors.primary + "14" }]}>
+              <Text style={[styles.tagText, { color: colors.primary }]}>{spec}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
     </View>
   );
 }
@@ -93,17 +79,13 @@ const styles = StyleSheet.create({
   card: {
     width: 168,
     borderRadius: 20,
+    borderWidth: 1,
     overflow: "hidden",
     shadowColor: "#6080c0",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 14,
-    elevation: 3,
-  },
-  blur: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.6)",
-    borderRadius: 20,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 2,
   },
   inner: {
     padding: 14,

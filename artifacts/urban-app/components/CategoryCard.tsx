@@ -1,5 +1,4 @@
 import { Icon as Feather } from "@/components/Icon";
-import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React from "react";
@@ -26,15 +25,21 @@ export function CategoryCard({
 }: CategoryCardProps) {
   const colors = useColors();
   const router = useRouter();
-  const isIOS = Platform.OS === "ios";
 
   const handlePress = () => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/category/${id}`);
   };
 
-  const CardInner = (
-    <>
+  return (
+    <Pressable
+      onPress={handlePress}
+      style={({ pressed }) => [
+        styles.card,
+        { backgroundColor: colors.card, borderColor: colors.border },
+        pressed && { opacity: 0.82, transform: [{ scale: 0.95 }] },
+      ]}
+    >
       <View style={[styles.iconBg, { backgroundColor: bgColor }]}>
         <Feather name={icon as any} size={22} color={color} />
       </View>
@@ -42,57 +47,26 @@ export function CategoryCard({
         {name}
       </Text>
       <Text style={[styles.count, { color: colors.mutedForeground }]}>
-        {serviceCount}
+        {serviceCount} services
       </Text>
-    </>
-  );
-
-  return (
-    <Pressable
-      onPress={handlePress}
-      style={({ pressed }) => [
-        styles.card,
-        pressed && { opacity: 0.82, transform: [{ scale: 0.95 }] },
-      ]}
-    >
-      {isIOS ? (
-        <BlurView intensity={50} tint="light" style={styles.blurCard}>
-          {CardInner}
-        </BlurView>
-      ) : (
-        <View
-          style={[
-            styles.blurCard,
-            { backgroundColor: colors.glass, borderColor: colors.glassBorder, borderWidth: StyleSheet.hairlineWidth },
-          ]}
-        >
-          {CardInner}
-        </View>
-      )}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    width: 88,
+    width: 90,
     borderRadius: 18,
-    overflow: "hidden",
-    shadowColor: "#6080c0",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  blurCard: {
+    borderWidth: 1,
     alignItems: "center",
-    justifyContent: "center",
     paddingVertical: 14,
     paddingHorizontal: 8,
-    borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.6)",
-    minHeight: 108,
+    minHeight: 110,
+    shadowColor: "#6080c0",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 2,
   },
   iconBg: {
     width: 48,
@@ -100,7 +74,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 6,
+    marginBottom: 8,
   },
   name: {
     fontSize: 12,
@@ -111,5 +85,6 @@ const styles = StyleSheet.create({
   count: {
     fontSize: 10,
     textAlign: "center",
+    fontFamily: "Inter_400Regular",
   },
 });
