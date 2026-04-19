@@ -100,7 +100,7 @@ export default function AddressScreen() {
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 20 }]} showsVerticalScrollIndicator={false}>
-        <LocationTracker compact onLocationUpdate={fillFromCurrentLocation} />
+        <LocationTracker compact />
 
         <View style={[styles.searchBox, { backgroundColor: colors.card, borderColor: colors.border }]}> 
           <Feather name="search" size={16} color={colors.mutedForeground} />
