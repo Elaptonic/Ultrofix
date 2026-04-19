@@ -44,7 +44,7 @@ export default function AddressScreen() {
   useEffect(() => {
     const timeout = setTimeout(async () => {
       const query = customAddress.trim();
-      if (query.length < 3) {
+      if (query.length < 2) {
         setPlaceResults([]);
         return;
       }
@@ -58,7 +58,7 @@ export default function AddressScreen() {
       } finally {
         setSearchingPlaces(false);
       }
-    }, 350);
+    }, 250);
 
     return () => clearTimeout(timeout);
   }, [customAddress]);
@@ -87,8 +87,8 @@ export default function AddressScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.card, paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) + 12, borderBottomColor: colors.border }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}> 
+      <View style={[styles.header, { backgroundColor: colors.card, paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) + 12, borderBottomColor: colors.border }]}> 
         <Pressable onPress={() => router.back()}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
@@ -99,19 +99,19 @@ export default function AddressScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 20 }]} showsVerticalScrollIndicator={false}>
         <LocationTracker compact onLocationUpdate={fillFromCurrentLocation} />
 
-        <View style={[styles.searchBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.searchBox, { backgroundColor: colors.card, borderColor: colors.border }]}> 
           <Feather name="search" size={16} color={colors.mutedForeground} />
           <TextInput
             value={customAddress}
             onChangeText={setCustomAddress}
-            placeholder="Search Google locations..."
+            placeholder="Search building, society, or area..."
             placeholderTextColor={colors.mutedForeground}
             style={[styles.searchInput, { color: colors.foreground }]}
           />
         </View>
         {searchingPlaces && <Text style={[styles.searchHint, { color: colors.mutedForeground }]}>Searching locations…</Text>}
         {!!placeResults.length && (
-          <View style={[styles.resultsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.resultsCard, { backgroundColor: colors.card, borderColor: colors.border }]}> 
             {placeResults.map((place) => (
               <Pressable key={place.place_id} onPress={() => handleSelect(place.description)} style={({ pressed }) => [styles.resultRow, pressed && { opacity: 0.75 }]}>
                 <Feather name="map-pin" size={16} color={colors.primary} />
@@ -129,7 +129,7 @@ export default function AddressScreen() {
         </Pressable>
 
         {liveAddress ? (
-          <View style={[styles.liveCard, { backgroundColor: colors.accent, borderColor: colors.primary }]}>
+          <View style={[styles.liveCard, { backgroundColor: colors.accent, borderColor: colors.primary }]}> 
             <Feather name="map-pin" size={16} color={colors.primary} />
             <Text style={[styles.liveText, { color: colors.foreground }]} numberOfLines={2}>{liveAddress}</Text>
           </View>
@@ -138,7 +138,7 @@ export default function AddressScreen() {
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Saved Addresses</Text>
         {SAVED_ADDRESSES.map((addr) => (
           <Pressable key={addr.id} onPress={() => handleSelect(addr.address)} style={({ pressed }) => [styles.addressCard, { backgroundColor: selectedAddress === addr.address ? colors.accent : colors.card, borderColor: selectedAddress === addr.address ? colors.primary : colors.border }, pressed && { opacity: 0.85 }]}>
-            <View style={[styles.addrIcon, { backgroundColor: selectedAddress === addr.address ? colors.primary + "22" : colors.muted }]}>
+            <View style={[styles.addrIcon, { backgroundColor: selectedAddress === addr.address ? colors.primary + "22" : colors.muted }]}> 
               <Feather name={addr.icon as any} size={18} color={selectedAddress === addr.address ? colors.primary : colors.mutedForeground} />
             </View>
             <View style={styles.addrInfo}>
@@ -152,12 +152,12 @@ export default function AddressScreen() {
         ))}
 
         <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 12 }]}>Enter Custom Address</Text>
-        <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border }]}> 
           <Feather name="map-pin" size={18} color={colors.primary} />
           <TextInput
             value={customAddress}
             onChangeText={setCustomAddress}
-            placeholder="Type your address..."
+            placeholder="Type your building or area..."
             placeholderTextColor={colors.mutedForeground}
             style={[styles.input, { color: colors.foreground }]}
             multiline

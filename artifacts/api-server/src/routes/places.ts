@@ -18,13 +18,17 @@ router.get("/places/autocomplete", async (req, res) => {
   }
 
   try {
+    const query = input.trim();
     const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
-    url.searchParams.set("input", input.trim());
+    url.searchParams.set("input", query);
     url.searchParams.set("key", GOOGLE_MAPS_API_KEY);
     url.searchParams.set("components", "country:in");
-    url.searchParams.set("types", "geocode");
     url.searchParams.set("language", "en");
     url.searchParams.set("sessiontoken", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
+    if (query.length <= 4) {
+      url.searchParams.set("types", "geocode");
+    }
 
     const response = await fetch(url.toString());
     const data = (await response.json()) as { status: string; predictions?: Array<{ place_id: string; description: string }> };
@@ -34,7 +38,8 @@ router.get("/places/autocomplete", async (req, res) => {
       return;
     }
 
-    res.json({ predictions: (data.predictions ?? []).slice(0, 10) });
+    const predictions = (data.predictions ?? []).slice(0, 12);
+    res.json({ predictions });
   } catch {
     res.status(500).json({ error: "Failed to reach Google Places API", predictions: [] });
   }
