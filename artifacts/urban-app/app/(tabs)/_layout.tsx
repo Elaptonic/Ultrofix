@@ -1,5 +1,5 @@
 import { BlurView } from "expo-blur";
-import { Feather } from "@expo/vector-icons";
+import { Icon as Feather } from "@/components/Icon";
 import { Tabs } from "expo-router";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";

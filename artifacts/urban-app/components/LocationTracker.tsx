@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Icon as Feather } from "@/components/Icon";
 import * as Location from "expo-location";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";

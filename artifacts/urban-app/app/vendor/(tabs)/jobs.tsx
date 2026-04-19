@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Icon as Feather } from "@/components/Icon";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,

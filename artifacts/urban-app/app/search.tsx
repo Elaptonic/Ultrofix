@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Icon as Feather } from "@/components/Icon";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";

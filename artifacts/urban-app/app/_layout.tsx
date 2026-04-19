@@ -93,9 +93,6 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
-    // Load Feather directly from the local assets folder — avoids pnpm symlink
-    // resolution failures that cause silent font load errors on Android
-    Feather: require("../assets/fonts/Feather.ttf"),
   });
 
   useEffect(() => {

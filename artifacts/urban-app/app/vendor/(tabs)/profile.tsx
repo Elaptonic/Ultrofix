@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Icon as Feather } from "@/components/Icon";
 import React from "react";
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";

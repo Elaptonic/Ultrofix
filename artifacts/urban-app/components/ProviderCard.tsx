@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Icon as Feather } from "@/components/Icon";
 import { BlurView } from "expo-blur";
 import React from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
