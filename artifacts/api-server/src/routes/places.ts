@@ -2,8 +2,7 @@ import { Router } from "express";
 
 const router = Router();
 
-const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
-const USER_AGENT = "UrbanApp/1.0 (home-services-marketplace)";
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 
 type Prediction = {
   place_id: string;
@@ -11,43 +10,39 @@ type Prediction = {
 };
 
 const searchPlaces = async (query: string): Promise<Prediction[]> => {
-  const url = new URL(`${NOMINATIM_BASE}/search`);
-  url.searchParams.set("q", query);
-  url.searchParams.set("format", "json");
-  url.searchParams.set("addressdetails", "1");
-  url.searchParams.set("limit", "15");
-  url.searchParams.set("accept-language", "en");
-  url.searchParams.set("dedupe", "1");
+  const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
+  url.searchParams.set("input", query);
+  url.searchParams.set("key", GOOGLE_MAPS_API_KEY);
+  url.searchParams.set("components", "country:in");
+  url.searchParams.set("language", "en");
+  url.searchParams.set("sessiontoken", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  url.searchParams.set("types", "geocode|establishment");
+  url.searchParams.set("strictbounds", "false");
 
-  const response = await fetch(url.toString(), {
-    headers: { "User-Agent": USER_AGENT },
-  });
+  const response = await fetch(url.toString());
+  const data = await response.json() as { status: string; predictions?: Prediction[]; error_message?: string };
 
-  if (!response.ok) throw new Error(`Nominatim search failed: ${response.status}`);
+  if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+    throw new Error(data.error_message ?? `Google Places autocomplete failed: ${data.status}`);
+  }
 
-  const results: any[] = await response.json();
-  return results.map((item) => ({
-    place_id: String(item.place_id),
-    description: item.display_name as string,
-  }));
+  return data.predictions ?? [];
 };
 
 const reverseGeocode = async (lat: number, lon: number): Promise<string | null> => {
-  const url = new URL(`${NOMINATIM_BASE}/reverse`);
-  url.searchParams.set("lat", String(lat));
-  url.searchParams.set("lon", String(lon));
-  url.searchParams.set("format", "json");
-  url.searchParams.set("addressdetails", "1");
-  url.searchParams.set("accept-language", "en");
+  const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+  url.searchParams.set("latlng", `${lat},${lon}`);
+  url.searchParams.set("key", GOOGLE_MAPS_API_KEY);
+  url.searchParams.set("language", "en");
 
-  const response = await fetch(url.toString(), {
-    headers: { "User-Agent": USER_AGENT },
-  });
+  const response = await fetch(url.toString());
+  const data = await response.json() as { status: string; results?: Array<{ formatted_address?: string }>; error_message?: string };
 
-  if (!response.ok) throw new Error(`Nominatim reverse failed: ${response.status}`);
+  if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+    throw new Error(data.error_message ?? `Google reverse geocode failed: ${data.status}`);
+  }
 
-  const data: any = await response.json();
-  return (data.display_name as string) ?? null;
+  return data.results?.[0]?.formatted_address ?? null;
 };
 
 router.get("/places/autocomplete", async (req, res) => {
@@ -58,10 +53,15 @@ router.get("/places/autocomplete", async (req, res) => {
     return;
   }
 
+  if (!GOOGLE_MAPS_API_KEY) {
+    res.status(500).json({ error: "Google Maps API key not configured on server", predictions: [] });
+    return;
+  }
+
   try {
     const predictions = await searchPlaces(input.trim());
     res.json({ predictions });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: "Failed to search locations", predictions: [] });
   }
 });
@@ -75,10 +75,15 @@ router.get("/places/reverse", async (req, res) => {
     return;
   }
 
+  if (!GOOGLE_MAPS_API_KEY) {
+    res.status(500).json({ error: "Google Maps API key not configured on server", address: null });
+    return;
+  }
+
   try {
     const address = await reverseGeocode(lat, lon);
     res.json({ address });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: "Failed to reverse geocode", address: null });
   }
 });
