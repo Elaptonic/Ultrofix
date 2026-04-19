@@ -50,6 +50,28 @@ export default function ProfileScreen() {
     }
   }, [profile]);
 
+  useEffect(() => {
+    const timeout = setTimeout(async () => {
+      const query = address.trim();
+      if (query.length < 3) {
+        setPlaceResults([]);
+        return;
+      }
+      setSearchingPlaces(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/places/autocomplete?input=${encodeURIComponent(query)}`, { credentials: "include" });
+        const data = await res.json();
+        setPlaceResults((data.predictions ?? []).map((item: any) => ({ place_id: item.place_id, description: item.description })));
+      } catch {
+        setPlaceResults([]);
+      } finally {
+        setSearchingPlaces(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timeout);
+  }, [address]);
+
   const completedBookings = (bookings ?? []).filter((b) => b.status === "completed").length;
   const displayName = profile?.name ?? "Arjun Mehta";
   const displayEmail = profile?.email ?? "arjun.mehta@gmail.com";
@@ -80,29 +102,6 @@ export default function ProfileScreen() {
     );
   };
 
-  const searchPlaces = async (query: string) => {
-    setAddress(query);
-    setSelectedPlace(null);
-    if (query.trim().length < 3) {
-      setPlaceResults([]);
-      return;
-    }
-
-    setSearchingPlaces(true);
-    try {
-      const res = await fetch(
-        `${API_BASE}/api/places/autocomplete?input=${encodeURIComponent(query.trim())}`,
-        { credentials: "include" },
-      );
-      const data = await res.json();
-      setPlaceResults((data.predictions ?? []).map((item: any) => ({ place_id: item.place_id, description: item.description })));
-    } catch {
-      setPlaceResults([]);
-    } finally {
-      setSearchingPlaces(false);
-    }
-  };
-
   const selectPlace = async (place: PlaceResult) => {
     setAddress(place.description);
     setSelectedPlace(place.description);
@@ -126,7 +125,7 @@ export default function ProfileScreen() {
         <Pressable onPress={logout} style={({ pressed }) => [styles.logoutBtn, { borderColor: colors.destructive }, pressed && { opacity: 0.7 }]}><Feather name="log-out" size={18} color={colors.destructive} /><Text style={[styles.logoutText, { color: colors.destructive }]}>Sign Out</Text></Pressable>
       </ScrollView>
 
-      {editing && <View style={[styles.editSheet, { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: insets.bottom + 20 }]}><View style={styles.editHeader}><Text style={[styles.editTitle, { color: colors.foreground }]}>Edit Profile</Text><Pressable onPress={() => setEditing(false)}><Feather name="x" size={22} color={colors.mutedForeground} /></Pressable></View><View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Name</Text><TextInput value={name} onChangeText={setName} style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]} placeholderTextColor={colors.mutedForeground} /></View><View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Email</Text><TextInput value={email} onChangeText={setEmail} style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]} placeholderTextColor={colors.mutedForeground} /></View><View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Phone</Text><TextInput value={phone} onChangeText={setPhone} style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]} placeholderTextColor={colors.mutedForeground} /></View><View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Address</Text><View style={[styles.searchBox, { backgroundColor: colors.muted, borderColor: colors.border }]}><Feather name="search" size={16} color={colors.mutedForeground} /><TextInput value={address} onChangeText={searchPlaces} placeholder="Search Google locations..." placeholderTextColor={colors.mutedForeground} style={[styles.searchInput, { color: colors.foreground }]} /></View></View>{searchingPlaces && <Text style={[styles.searchHint, { color: colors.mutedForeground }]}>Searching locations…</Text>}{placeResults.length > 0 && <View style={[styles.resultsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>{placeResults.map((place) => <Pressable key={place.place_id} onPress={() => selectPlace(place)} style={({ pressed }) => [styles.resultRow, pressed && { opacity: 0.75 }]}><Feather name="map-pin" size={16} color={colors.primary} /><Text style={[styles.resultText, { color: colors.foreground }]} numberOfLines={2}>{place.description}</Text></Pressable>)}</View>}<View style={[styles.previewCard, { backgroundColor: colors.accent, borderColor: colors.border }]}><Feather name="map-pin" size={16} color={colors.primary} /><Text style={[styles.previewText, { color: colors.foreground }]} numberOfLines={2}>{addressPreview}</Text></View><Pressable onPress={handleSave} disabled={upsertProfile.isPending} style={({ pressed }) => [styles.saveBtn, { backgroundColor: colors.primary }, (pressed || upsertProfile.isPending) && { opacity: 0.75 }]}>{upsertProfile.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Save Changes</Text>}</Pressable></View>}
+      {editing && <View style={[styles.editSheet, { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: insets.bottom + 20 }]}><View style={styles.editHeader}><Text style={[styles.editTitle, { color: colors.foreground }]}>Edit Profile</Text><Pressable onPress={() => setEditing(false)}><Feather name="x" size={22} color={colors.mutedForeground} /></Pressable></View><View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Name</Text><TextInput value={name} onChangeText={setName} style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]} placeholderTextColor={colors.mutedForeground} /></View><View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Email</Text><TextInput value={email} onChangeText={setEmail} style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]} placeholderTextColor={colors.mutedForeground} /></View><View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Phone</Text><TextInput value={phone} onChangeText={setPhone} style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]} placeholderTextColor={colors.mutedForeground} /></View><View style={styles.inputGroup}><Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Address</Text><View style={[styles.searchBox, { backgroundColor: colors.muted, borderColor: colors.border }]}><Feather name="search" size={16} color={colors.mutedForeground} /><TextInput value={address} onChangeText={setAddress} placeholder="Search Google locations..." placeholderTextColor={colors.mutedForeground} style={[styles.searchInput, { color: colors.foreground }]} /></View></View>{searchingPlaces && <Text style={[styles.searchHint, { color: colors.mutedForeground }]}>Searching locations…</Text>}{placeResults.length > 0 && <View style={[styles.resultsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>{placeResults.map((place) => <Pressable key={place.place_id} onPress={() => selectPlace(place)} style={({ pressed }) => [styles.resultRow, pressed && { opacity: 0.75 }]}><Feather name="map-pin" size={16} color={colors.primary} /><Text style={[styles.resultText, { color: colors.foreground }]} numberOfLines={2}>{place.description}</Text></Pressable>)}</View>}<View style={[styles.previewCard, { backgroundColor: colors.accent, borderColor: colors.border }]}><Feather name="map-pin" size={16} color={colors.primary} /><Text style={[styles.previewText, { color: colors.foreground }]} numberOfLines={2}>{addressPreview}</Text></View><Pressable onPress={handleSave} disabled={upsertProfile.isPending} style={({ pressed }) => [styles.saveBtn, { backgroundColor: colors.primary }, (pressed || upsertProfile.isPending) && { opacity: 0.75 }]}>{upsertProfile.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Save Changes</Text>}</Pressable></View>}
     </View>
   );
 }

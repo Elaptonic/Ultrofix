@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -17,7 +17,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LocationTracker } from "@/components/LocationTracker";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+
 const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+
+type PlaceResult = {
+  place_id: string;
+  description: string;
+};
 
 const SAVED_ADDRESSES = [
   { id: "1", label: "Home", address: "123 MG Road, Bangalore 560001", icon: "home" },
@@ -32,8 +38,30 @@ export default function AddressScreen() {
   const { selectedAddress, setSelectedAddress } = useApp();
   const [customAddress, setCustomAddress] = useState("");
   const [liveAddress, setLiveAddress] = useState<string | null>(null);
-  const [placeResults, setPlaceResults] = useState<Array<{ place_id: string; description: string }>>([]);
+  const [placeResults, setPlaceResults] = useState<PlaceResult[]>([]);
   const [searchingPlaces, setSearchingPlaces] = useState(false);
+
+  useEffect(() => {
+    const timeout = setTimeout(async () => {
+      const query = customAddress.trim();
+      if (query.length < 3) {
+        setPlaceResults([]);
+        return;
+      }
+      setSearchingPlaces(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/places/autocomplete?input=${encodeURIComponent(query)}`, { credentials: "include" });
+        const data = await res.json();
+        setPlaceResults((data.predictions ?? []).map((item: any) => ({ place_id: item.place_id, description: item.description })));
+      } catch {
+        setPlaceResults([]);
+      } finally {
+        setSearchingPlaces(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timeout);
+  }, [customAddress]);
 
   const handleSelect = (address: string) => {
     setSelectedAddress(address);
@@ -58,39 +86,9 @@ export default function AddressScreen() {
     }
   };
 
-  const searchPlaces = async (query: string) => {
-    setCustomAddress(query);
-    if (query.trim().length < 3) {
-      setPlaceResults([]);
-      return;
-    }
-    setSearchingPlaces(true);
-    try {
-      const res = await fetch(
-        `${API_BASE}/api/places/autocomplete?input=${encodeURIComponent(query.trim())}`,
-        { credentials: "include" },
-      );
-      const data = await res.json();
-      setPlaceResults((data.predictions ?? []).map((item: any) => ({ place_id: item.place_id, description: item.description })));
-    } catch {
-      setPlaceResults([]);
-    } finally {
-      setSearchingPlaces(false);
-    }
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View
-        style={[
-          styles.header,
-          {
-            backgroundColor: colors.card,
-            paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) + 12,
-            borderBottomColor: colors.border,
-          },
-        ]}
-      >
+      <View style={[styles.header, { backgroundColor: colors.card, paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) + 12, borderBottomColor: colors.border }]}>
         <Pressable onPress={() => router.back()}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
@@ -98,38 +96,14 @@ export default function AddressScreen() {
         <View style={{ width: 22 }} />
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.content,
-          {
-            paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 20,
-          },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        <LocationTracker compact onLocationUpdate={async () => {
-          try {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== "granted") return;
-            const current = await Location.getCurrentPositionAsync({});
-            const [result] = await Location.reverseGeocodeAsync({
-              latitude: current.coords.latitude,
-              longitude: current.coords.longitude,
-            });
-            const formatted = [result?.name, result?.street, result?.district, result?.city, result?.postalCode]
-              .filter(Boolean)
-              .join(", ");
-            if (formatted) setLiveAddress(formatted);
-          } catch {
-          }
-        }} />
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 20 }]} showsVerticalScrollIndicator={false}>
+        <LocationTracker compact onLocationUpdate={fillFromCurrentLocation} />
 
         <View style={[styles.searchBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Feather name="search" size={16} color={colors.mutedForeground} />
           <TextInput
             value={customAddress}
-            onChangeText={searchPlaces}
+            onChangeText={setCustomAddress}
             placeholder="Search Google locations..."
             placeholderTextColor={colors.mutedForeground}
             style={[styles.searchInput, { color: colors.foreground }]}
@@ -139,11 +113,7 @@ export default function AddressScreen() {
         {!!placeResults.length && (
           <View style={[styles.resultsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {placeResults.map((place) => (
-              <Pressable
-                key={place.place_id}
-                onPress={() => handleSelect(place.description)}
-                style={({ pressed }) => [styles.resultRow, pressed && { opacity: 0.75 }]}
-              >
+              <Pressable key={place.place_id} onPress={() => handleSelect(place.description)} style={({ pressed }) => [styles.resultRow, pressed && { opacity: 0.75 }]}>
                 <Feather name="map-pin" size={16} color={colors.primary} />
                 <Text style={[styles.resultText, { color: colors.foreground }]} numberOfLines={2}>
                   {place.description}
@@ -153,14 +123,7 @@ export default function AddressScreen() {
           </View>
         )}
 
-        <Pressable
-          onPress={fillFromCurrentLocation}
-          style={({ pressed }) => [
-            styles.currentBtn,
-            { backgroundColor: colors.primary },
-            pressed && { opacity: 0.85 },
-          ]}
-        >
+        <Pressable onPress={fillFromCurrentLocation} style={({ pressed }) => [styles.currentBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}>
           <Feather name="navigation" size={16} color="#fff" />
           <Text style={styles.currentBtnText}>Use current location</Text>
         </Pressable>
@@ -174,31 +137,9 @@ export default function AddressScreen() {
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Saved Addresses</Text>
         {SAVED_ADDRESSES.map((addr) => (
-          <Pressable
-            key={addr.id}
-            onPress={() => handleSelect(addr.address)}
-            style={({ pressed }) => [
-              styles.addressCard,
-              {
-                backgroundColor: selectedAddress === addr.address ? colors.accent : colors.card,
-                borderColor: selectedAddress === addr.address ? colors.primary : colors.border,
-              },
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <View
-              style={[
-                styles.addrIcon,
-                {
-                  backgroundColor: selectedAddress === addr.address ? colors.primary + "22" : colors.muted,
-                },
-              ]}
-            >
-              <Feather
-                name={addr.icon as any}
-                size={18}
-                color={selectedAddress === addr.address ? colors.primary : colors.mutedForeground}
-              />
+          <Pressable key={addr.id} onPress={() => handleSelect(addr.address)} style={({ pressed }) => [styles.addressCard, { backgroundColor: selectedAddress === addr.address ? colors.accent : colors.card, borderColor: selectedAddress === addr.address ? colors.primary : colors.border }, pressed && { opacity: 0.85 }]}>
+            <View style={[styles.addrIcon, { backgroundColor: selectedAddress === addr.address ? colors.primary + "22" : colors.muted }]}>
+              <Feather name={addr.icon as any} size={18} color={selectedAddress === addr.address ? colors.primary : colors.mutedForeground} />
             </View>
             <View style={styles.addrInfo}>
               <Text style={[styles.addrLabel, { color: colors.foreground }]}>{addr.label}</Text>
@@ -206,9 +147,7 @@ export default function AddressScreen() {
                 {addr.address}
               </Text>
             </View>
-            {selectedAddress === addr.address && (
-              <Feather name="check-circle" size={20} color={colors.primary} />
-            )}
+            {selectedAddress === addr.address && <Feather name="check-circle" size={20} color={colors.primary} />}
           </Pressable>
         ))}
 
@@ -225,10 +164,7 @@ export default function AddressScreen() {
           />
         </View>
         {customAddress.length > 5 && (
-          <Pressable
-            onPress={() => handleSelect(customAddress)}
-            style={({ pressed }) => [styles.useBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
-          >
+          <Pressable onPress={() => handleSelect(customAddress)} style={({ pressed }) => [styles.useBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}>
             <Text style={styles.useBtnText}>Use this address</Text>
           </Pressable>
         )}
@@ -239,26 +175,12 @@ export default function AddressScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-  },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1 },
   title: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
   scroll: { flex: 1 },
   content: { padding: 20, gap: 10 },
   sectionTitle: { fontSize: 16, fontFamily: "Inter_700Bold", marginBottom: 4 },
-  currentBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 13,
-    borderRadius: 12,
-  },
+  currentBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13, borderRadius: 12 },
   currentBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
   searchBox: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 12, borderWidth: 1 },
   searchInput: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },

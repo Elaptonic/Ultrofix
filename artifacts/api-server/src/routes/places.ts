@@ -13,7 +13,7 @@ router.get("/places/autocomplete", async (req, res) => {
   }
 
   if (!GOOGLE_MAPS_API_KEY) {
-    res.status(500).json({ error: "Google Maps API key not configured on server" });
+    res.status(500).json({ error: "Google Maps API key not configured on server", predictions: [] });
     return;
   }
 
@@ -23,17 +23,19 @@ router.get("/places/autocomplete", async (req, res) => {
     url.searchParams.set("key", GOOGLE_MAPS_API_KEY);
     url.searchParams.set("components", "country:in");
     url.searchParams.set("types", "geocode");
+    url.searchParams.set("language", "en");
+    url.searchParams.set("sessiontoken", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
     const response = await fetch(url.toString());
-    const data = await response.json() as { status: string; predictions: unknown[] };
+    const data = (await response.json()) as { status: string; predictions?: Array<{ place_id: string; description: string }> };
 
     if (!response.ok || data.status === "REQUEST_DENIED" || data.status === "INVALID_REQUEST") {
       res.status(400).json({ error: data.status, predictions: [] });
       return;
     }
 
-    res.json({ predictions: data.predictions ?? [] });
-  } catch (err) {
+    res.json({ predictions: (data.predictions ?? []).slice(0, 10) });
+  } catch {
     res.status(500).json({ error: "Failed to reach Google Places API", predictions: [] });
   }
 });
