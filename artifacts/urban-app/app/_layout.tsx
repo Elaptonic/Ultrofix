@@ -93,9 +93,9 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
-    // Load Feather icon font directly from the TTF file — more reliable on Android
-    // than spreading Feather.font which can resolve incorrectly on that platform
-    Feather: require("@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Feather.ttf"),
+    // Load Feather directly from the local assets folder — avoids pnpm symlink
+    // resolution failures that cause silent font load errors on Android
+    Feather: require("../assets/fonts/Feather.ttf"),
   });
 
   useEffect(() => {
