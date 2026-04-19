@@ -1,10 +1,13 @@
 import { BlurView } from "expo-blur";
-import { Feather } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
+
+const TabIcon = ({ label, focused }: { label: string; focused: boolean }) => (
+  <Text style={{ fontSize: 18, color: focused ? "#000" : "#666" }}>{label}</Text>
+);
 
 export default function TabLayout() {
   const colors = useColors();
@@ -39,34 +42,10 @@ export default function TabLayout() {
         },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Home",
-          tabBarIcon: ({ color, size }) => <Feather name="grid" size={size ?? 22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="bookings"
-        options={{
-          title: "Bookings",
-          tabBarIcon: ({ color, size }) => <Feather name="calendar" size={size ?? 22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="saved"
-        options={{
-          title: "Saved",
-          tabBarIcon: ({ color, size }) => <Feather name="heart" size={size ?? 22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Profile",
-          tabBarIcon: ({ color, size }) => <Feather name="user" size={size ?? 22} color={color} />,
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: "Home", tabBarIcon: ({ focused }) => <TabIcon label="⌂" focused={focused} /> }} />
+      <Tabs.Screen name="bookings" options={{ title: "Bookings", tabBarIcon: ({ focused }) => <TabIcon label="▣" focused={focused} /> }} />
+      <Tabs.Screen name="saved" options={{ title: "Saved", tabBarIcon: ({ focused }) => <TabIcon label="♥" focused={focused} /> }} />
+      <Tabs.Screen name="profile" options={{ title: "Profile", tabBarIcon: ({ focused }) => <TabIcon label="◉" focused={focused} /> }} />
     </Tabs>
   );
 }
