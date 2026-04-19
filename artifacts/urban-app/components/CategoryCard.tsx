@@ -86,12 +86,13 @@ const styles = StyleSheet.create({
   },
   blurCard: {
     alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 14,
     paddingHorizontal: 8,
-    gap: 6,
     borderRadius: 18,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(255,255,255,0.6)",
+    minHeight: 108,
   },
   iconBg: {
     width: 48,
@@ -99,11 +100,13 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 6,
   },
   name: {
     fontSize: 12,
     fontFamily: "Inter_600SemiBold",
     textAlign: "center",
+    marginBottom: 2,
   },
   count: {
     fontSize: 10,
