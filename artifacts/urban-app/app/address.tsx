@@ -73,16 +73,19 @@ export default function AddressScreen() {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== "granted") return;
     const current = await Location.getCurrentPositionAsync({});
-    const [result] = await Location.reverseGeocodeAsync({
-      latitude: current.coords.latitude,
-      longitude: current.coords.longitude,
-    });
-    const formatted = [result?.name, result?.street, result?.district, result?.city, result?.postalCode]
-      .filter(Boolean)
-      .join(", ");
-    if (formatted) {
-      setCustomAddress(formatted);
-      setLiveAddress(formatted);
+    const { latitude, longitude } = current.coords;
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/places/reverse?lat=${latitude}&lon=${longitude}`,
+        { credentials: "include" }
+      );
+      const data = await res.json();
+      if (data.address) {
+        setCustomAddress(data.address);
+        setLiveAddress(data.address);
+      }
+    } catch {
+      // silently ignore reverse geocode errors
     }
   };
 

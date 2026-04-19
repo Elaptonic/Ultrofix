@@ -35,10 +35,11 @@ export function LocationTracker({ onLocationUpdate, compact }: LocationTrackerPr
         setLoading(false);
 
         subscription = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.Balanced, timeInterval: 10000, distanceInterval: 10 },
+          { accuracy: Location.Accuracy.Balanced, timeInterval: 30000, distanceInterval: 50 },
           (next) => {
             setLocation(next);
-            onLocationUpdate?.(next);
+            // Do not call onLocationUpdate on watch updates to avoid triggering
+            // expensive reverse geocoding repeatedly
           },
         );
       } catch {
