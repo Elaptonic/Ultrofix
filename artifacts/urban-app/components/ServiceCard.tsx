@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
-    elevation: 2,
+    elevation: Platform.OS === "android" ? 0 : 2,
   },
   cardCompact: {
     width: "100%",
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: Platform.OS === "android" ? 0 : 2,
   },
   info: {
     padding: 12,

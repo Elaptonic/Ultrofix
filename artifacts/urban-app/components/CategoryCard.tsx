@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.08,
     shadowRadius: 10,
-    elevation: 2,
+    elevation: Platform.OS === "android" ? 0 : 2,
   },
   iconBg: {
     width: 48,
