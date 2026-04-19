@@ -58,7 +58,7 @@ export default function AddressScreen() {
       } finally {
         setSearchingPlaces(false);
       }
-    }, 250);
+    }, 200);
 
     return () => clearTimeout(timeout);
   }, [customAddress]);
@@ -104,7 +104,7 @@ export default function AddressScreen() {
           <TextInput
             value={customAddress}
             onChangeText={setCustomAddress}
-            placeholder="Search building, society, or area..."
+            placeholder="Search shop, building, society, or area..."
             placeholderTextColor={colors.mutedForeground}
             style={[styles.searchInput, { color: colors.foreground }]}
           />
@@ -157,7 +157,7 @@ export default function AddressScreen() {
           <TextInput
             value={customAddress}
             onChangeText={setCustomAddress}
-            placeholder="Type your building or area..."
+            placeholder="Type your shop or building..."
             placeholderTextColor={colors.mutedForeground}
             style={[styles.input, { color: colors.foreground }]}
             multiline

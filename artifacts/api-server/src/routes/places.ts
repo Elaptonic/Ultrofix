@@ -4,6 +4,31 @@ const router = Router();
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 
+type Prediction = {
+  place_id: string;
+  description: string;
+};
+
+const fetchAutocomplete = async (query: string) => {
+  const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
+  url.searchParams.set("input", query);
+  url.searchParams.set("key", GOOGLE_MAPS_API_KEY);
+  url.searchParams.set("components", "country:in");
+  url.searchParams.set("language", "en");
+  url.searchParams.set("sessiontoken", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const response = await fetch(url.toString());
+  return response.json() as Promise<{ status: string; predictions?: Prediction[] }>;
+};
+
+const fetchTextSearch = async (query: string) => {
+  const url = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
+  url.searchParams.set("query", query);
+  url.searchParams.set("key", GOOGLE_MAPS_API_KEY);
+  url.searchParams.set("language", "en");
+  const response = await fetch(url.toString());
+  return response.json() as Promise<{ status: string; results?: Array<{ place_id: string; formatted_address?: string; name?: string }> }>;
+};
+
 router.get("/places/autocomplete", async (req, res) => {
   const input = req.query["input"] as string | undefined;
 
@@ -19,27 +44,25 @@ router.get("/places/autocomplete", async (req, res) => {
 
   try {
     const query = input.trim();
-    const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
-    url.searchParams.set("input", query);
-    url.searchParams.set("key", GOOGLE_MAPS_API_KEY);
-    url.searchParams.set("components", "country:in");
-    url.searchParams.set("language", "en");
-    url.searchParams.set("sessiontoken", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const [autocompleteData, textSearchData] = await Promise.all([
+      fetchAutocomplete(query),
+      fetchTextSearch(query),
+    ]);
 
-    if (query.length <= 4) {
-      url.searchParams.set("types", "geocode");
-    }
+    const autocompletePredictions = (autocompleteData.predictions ?? []).map((item) => ({
+      place_id: item.place_id,
+      description: item.description,
+    }));
 
-    const response = await fetch(url.toString());
-    const data = (await response.json()) as { status: string; predictions?: Array<{ place_id: string; description: string }> };
+    const textSearchPredictions = (textSearchData.results ?? []).map((item) => ({
+      place_id: item.place_id,
+      description: item.formatted_address ?? item.name ?? query,
+    }));
 
-    if (!response.ok || data.status === "REQUEST_DENIED" || data.status === "INVALID_REQUEST") {
-      res.status(400).json({ error: data.status, predictions: [] });
-      return;
-    }
+    const merged = [...autocompletePredictions, ...textSearchPredictions];
+    const deduped = merged.filter((item, index, self) => index === self.findIndex((candidate) => candidate.place_id === item.place_id));
 
-    const predictions = (data.predictions ?? []).slice(0, 12);
-    res.json({ predictions });
+    res.json({ predictions: deduped.slice(0, 15) });
   } catch {
     res.status(500).json({ error: "Failed to reach Google Places API", predictions: [] });
   }
