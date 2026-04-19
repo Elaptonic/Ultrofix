@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 16,
-    elevation: 2,
+    elevation: Platform.OS === "android" ? 0 : 2,
   },
   whyTitle: { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 4 },
   whyItem: { flexDirection: "row", alignItems: "center", gap: 14 },
