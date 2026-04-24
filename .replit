@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-24", "postgresql-16"]
 
 [deployment]
 router = "application"
@@ -73,6 +73,7 @@ externalPort = 3002
 [userenv]
 
 [userenv.shared]
+FIREBASE_PROJECT_ID = "ultrofix-e5ed6"
 
 [nix]
 channel = "stable-25_05"

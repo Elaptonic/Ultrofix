@@ -1,10 +1,9 @@
-import * as oidc from "openid-client";
 import { Router, type IRouter, type Request, type Response } from "express";
 import {
   GetCurrentAuthUserResponse,
-  ExchangeMobileAuthorizationCodeBody,
-  ExchangeMobileAuthorizationCodeResponse,
-  LogoutMobileSessionResponse,
+  VerifyFirebaseIdTokenBody,
+  VerifyFirebaseIdTokenResponse,
+  LogoutSessionResponse,
   SetUserRoleBody,
   SetUserRoleResponse,
 } from "@workspace/api-zod";
@@ -12,77 +11,50 @@ import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import {
   clearSession,
-  getOidcConfig,
   getSessionId,
   createSession,
   deleteSession,
   getSession,
   updateSession,
-  SESSION_COOKIE,
-  SESSION_TTL,
-  ISSUER_URL,
   type SessionData,
 } from "../lib/auth";
-
-const OIDC_COOKIE_TTL = 10 * 60 * 1000;
+import { verifyFirebaseIdToken, type FirebaseClaims } from "../lib/firebaseVerify";
 
 const router: IRouter = Router();
 
-function getOrigin(req: Request): string {
-  const proto = req.headers["x-forwarded-proto"] || "https";
-  const host =
-    req.headers["x-forwarded-host"] || req.headers["host"] || "localhost";
-  return `${proto}://${host}`;
-}
+async function upsertUserFromFirebase(claims: FirebaseClaims) {
+  const userId = claims.user_id;
+  const phoneNumber = claims.phone_number ?? null;
+  const email = claims.email ?? null;
+  const profileImageUrl = (claims.picture as string | undefined) ?? null;
 
-function setSessionCookie(res: Response, sid: string) {
-  res.cookie(SESSION_COOKIE, sid, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_TTL,
-  });
-}
+  // First, try to find by phone number to avoid duplicates if a user re-auths
+  // with the same phone but a different Firebase project mapping.
+  let existing: { id: string } | undefined;
+  if (phoneNumber) {
+    const [row] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.phoneNumber, phoneNumber));
+    existing = row;
+  }
 
-function setOidcCookie(res: Response, name: string, value: string) {
-  res.cookie(name, value, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: OIDC_COOKIE_TTL,
-  });
-}
-
-function getSafeReturnTo(value: unknown): string {
-  if (typeof value !== "string") return "/";
-  if (value.startsWith("/") && !value.startsWith("//")) return value;
-  try {
-    const url = new URL(value);
-    if (url.protocol === "https:") return value;
-  } catch {}
-  return "/";
-}
-
-async function upsertUser(claims: Record<string, unknown>) {
-  const userData = {
-    id: claims.sub as string,
-    email: (claims.email as string) || null,
-    firstName: (claims.first_name as string) || null,
-    lastName: (claims.last_name as string) || null,
-    profileImageUrl: (claims.profile_image_url || claims.picture) as
-      | string
-      | null,
-  };
+  const targetId = existing?.id ?? userId;
 
   const [user] = await db
     .insert(usersTable)
-    .values(userData)
+    .values({
+      id: targetId,
+      phoneNumber,
+      email,
+      profileImageUrl,
+    })
     .onConflictDoUpdate({
       target: usersTable.id,
       set: {
-        ...userData,
+        phoneNumber,
+        email,
+        profileImageUrl,
         updatedAt: new Date(),
       },
     })
@@ -98,6 +70,56 @@ router.get("/auth/user", (req: Request, res: Response) => {
   );
 });
 
+router.post("/auth/firebase-verify", async (req: Request, res: Response) => {
+  const parsed = VerifyFirebaseIdTokenBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Missing or invalid idToken" });
+    return;
+  }
+
+  let claims: FirebaseClaims;
+  try {
+    claims = await verifyFirebaseIdToken(parsed.data.idToken);
+  } catch (err) {
+    req.log.error({ err }, "Firebase ID token verification failed");
+    res.status(401).json({ error: "Invalid Firebase ID token" });
+    return;
+  }
+
+  const dbUser = await upsertUserFromFirebase(claims);
+
+  const sessionData: SessionData = {
+    user: {
+      id: dbUser.id,
+      phoneNumber: dbUser.phoneNumber,
+      email: dbUser.email,
+      firstName: dbUser.firstName,
+      lastName: dbUser.lastName,
+      profileImageUrl: dbUser.profileImageUrl,
+      role: dbUser.role ?? null,
+    },
+    firebase_uid: claims.user_id,
+    issued_at: Math.floor(Date.now() / 1000),
+  };
+
+  const sid = await createSession(sessionData);
+  res.json(
+    VerifyFirebaseIdTokenResponse.parse({
+      token: sid,
+      user: sessionData.user,
+    }),
+  );
+});
+
+router.post("/auth/logout", async (req: Request, res: Response) => {
+  const sid = getSessionId(req);
+  if (sid) {
+    await deleteSession(sid);
+  }
+  await clearSession(res);
+  res.json(LogoutSessionResponse.parse({ success: true }));
+});
+
 router.patch("/auth/role", async (req: Request, res: Response) => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
@@ -106,7 +128,9 @@ router.patch("/auth/role", async (req: Request, res: Response) => {
 
   const parsed = SetUserRoleBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid role. Must be 'consumer' or 'provider'" });
+    res
+      .status(400)
+      .json({ error: "Invalid role. Must be 'consumer' or 'provider'" });
     return;
   }
 
@@ -134,6 +158,7 @@ router.patch("/auth/role", async (req: Request, res: Response) => {
     SetUserRoleResponse.parse({
       user: {
         id: updated.id,
+        phoneNumber: updated.phoneNumber,
         email: updated.email,
         firstName: updated.firstName,
         lastName: updated.lastName,
@@ -142,181 +167,6 @@ router.patch("/auth/role", async (req: Request, res: Response) => {
       },
     }),
   );
-});
-
-router.get("/login", async (req: Request, res: Response) => {
-  const config = await getOidcConfig();
-  const callbackUrl = `${getOrigin(req)}/api/callback`;
-
-  const returnTo = getSafeReturnTo(req.query.returnTo);
-
-  const state = oidc.randomState();
-  const nonce = oidc.randomNonce();
-  const codeVerifier = oidc.randomPKCECodeVerifier();
-  const codeChallenge = await oidc.calculatePKCECodeChallenge(codeVerifier);
-
-  const redirectTo = oidc.buildAuthorizationUrl(config, {
-    redirect_uri: callbackUrl,
-    scope: "openid email profile offline_access",
-    code_challenge: codeChallenge,
-    code_challenge_method: "S256",
-    prompt: "login consent",
-    state,
-    nonce,
-  });
-
-  setOidcCookie(res, "code_verifier", codeVerifier);
-  setOidcCookie(res, "nonce", nonce);
-  setOidcCookie(res, "state", state);
-  setOidcCookie(res, "return_to", returnTo);
-
-  res.redirect(redirectTo.href);
-});
-
-router.get("/callback", async (req: Request, res: Response) => {
-  const config = await getOidcConfig();
-  const callbackUrl = `${getOrigin(req)}/api/callback`;
-
-  const codeVerifier = req.cookies?.code_verifier;
-  const nonce = req.cookies?.nonce;
-  const expectedState = req.cookies?.state;
-
-  if (!codeVerifier || !expectedState) {
-    res.redirect("/api/login");
-    return;
-  }
-
-  const currentUrl = new URL(
-    `${callbackUrl}?${new URL(req.url, `http://${req.headers.host}`).searchParams}`,
-  );
-
-  let tokens: oidc.TokenEndpointResponse & oidc.TokenEndpointResponseHelpers;
-  try {
-    tokens = await oidc.authorizationCodeGrant(config, currentUrl, {
-      pkceCodeVerifier: codeVerifier,
-      expectedNonce: nonce,
-      expectedState,
-      idTokenExpected: true,
-    });
-  } catch {
-    res.redirect("/api/login");
-    return;
-  }
-
-  const returnTo = getSafeReturnTo(req.cookies?.return_to);
-
-  res.clearCookie("code_verifier", { path: "/" });
-  res.clearCookie("nonce", { path: "/" });
-  res.clearCookie("state", { path: "/" });
-  res.clearCookie("return_to", { path: "/" });
-
-  const claims = tokens.claims();
-  if (!claims) {
-    res.redirect("/api/login");
-    return;
-  }
-
-  const dbUser = await upsertUser(claims as unknown as Record<string, unknown>);
-
-  const now = Math.floor(Date.now() / 1000);
-  const sessionData: SessionData = {
-    user: {
-      id: dbUser.id,
-      email: dbUser.email,
-      firstName: dbUser.firstName,
-      lastName: dbUser.lastName,
-      profileImageUrl: dbUser.profileImageUrl,
-      role: dbUser.role ?? null,
-    },
-    access_token: tokens.access_token,
-    refresh_token: tokens.refresh_token,
-    expires_at: tokens.expiresIn() ? now + tokens.expiresIn()! : claims.exp,
-  };
-
-  const sid = await createSession(sessionData);
-  setSessionCookie(res, sid);
-  res.redirect(returnTo);
-});
-
-router.get("/logout", async (req: Request, res: Response) => {
-  const config = await getOidcConfig();
-  const origin = getOrigin(req);
-
-  const sid = getSessionId(req);
-  await clearSession(res, sid);
-
-  const endSessionUrl = oidc.buildEndSessionUrl(config, {
-    client_id: process.env.REPL_ID!,
-    post_logout_redirect_uri: origin,
-  });
-
-  res.redirect(endSessionUrl.href);
-});
-
-router.post(
-  "/mobile-auth/token-exchange",
-  async (req: Request, res: Response) => {
-    const parsed = ExchangeMobileAuthorizationCodeBody.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: "Missing or invalid required parameters" });
-      return;
-    }
-
-    const { code, code_verifier, redirect_uri, state, nonce } = parsed.data;
-
-    try {
-      const config = await getOidcConfig();
-
-      const callbackUrl = new URL(redirect_uri);
-      callbackUrl.searchParams.set("code", code);
-      callbackUrl.searchParams.set("state", state);
-      callbackUrl.searchParams.set("iss", ISSUER_URL);
-
-      const tokens = await oidc.authorizationCodeGrant(config, callbackUrl, {
-        pkceCodeVerifier: code_verifier,
-        expectedNonce: nonce ?? undefined,
-        expectedState: state,
-        idTokenExpected: true,
-      });
-
-      const claims = tokens.claims();
-      if (!claims) {
-        res.status(401).json({ error: "No claims in ID token" });
-        return;
-      }
-
-      const dbUser = await upsertUser(claims as unknown as Record<string, unknown>);
-
-      const now = Math.floor(Date.now() / 1000);
-      const sessionData: SessionData = {
-        user: {
-          id: dbUser.id,
-          email: dbUser.email,
-          firstName: dbUser.firstName,
-          lastName: dbUser.lastName,
-          profileImageUrl: dbUser.profileImageUrl,
-          role: dbUser.role ?? null,
-        },
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expires_at: tokens.expiresIn() ? now + tokens.expiresIn()! : claims.exp,
-      };
-
-      const sid = await createSession(sessionData);
-      res.json(ExchangeMobileAuthorizationCodeResponse.parse({ token: sid }));
-    } catch (err) {
-      req.log.error({ err }, "Mobile token exchange error");
-      res.status(500).json({ error: "Token exchange failed" });
-    }
-  },
-);
-
-router.post("/mobile-auth/logout", async (req: Request, res: Response) => {
-  const sid = getSessionId(req);
-  if (sid) {
-    await deleteSession(sid);
-  }
-  res.json(LogoutMobileSessionResponse.parse({ success: true }));
 });
 
 export default router;

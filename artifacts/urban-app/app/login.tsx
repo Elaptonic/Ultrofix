@@ -1,140 +1,343 @@
 import { Icon as Feather } from "@/components/Icon";
-import { useRouter } from "expo-router";
-import React from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/auth";
 
-export default function LoginScreen() {
-  const { login, isLoading } = useAuth();
-  const router = useRouter();
+const DEFAULT_COUNTRY_CODE = "+91";
 
-  const handleLogin = async () => {
-    await login();
+function normalizePhone(input: string): string {
+  // Strip everything except digits.
+  const digits = input.replace(/[^\d]/g, "");
+  return digits;
+}
+
+export default function LoginScreen() {
+  const {
+    sendOtp,
+    verifyOtp,
+    resendOtp,
+    cancelOtp,
+    isOtpSending,
+    isOtpVerifying,
+    pendingPhoneNumber,
+  } = useAuth();
+
+  const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY_CODE);
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+
+  const stage: "phone" | "otp" = pendingPhoneNumber ? "otp" : "phone";
+
+  const fullNumber = useMemo(() => {
+    const normalized = normalizePhone(phone);
+    const cc = countryCode.startsWith("+") ? countryCode : `+${countryCode}`;
+    return `${cc}${normalized}`;
+  }, [countryCode, phone]);
+
+  const isPhoneValid = normalizePhone(phone).length >= 7;
+
+  const handleSendOtp = async () => {
+    if (!isPhoneValid) {
+      Alert.alert("Invalid number", "Please enter a valid mobile number.");
+      return;
+    }
+    try {
+      await sendOtp(fullNumber);
+    } catch (err: any) {
+      Alert.alert(
+        "Could not send OTP",
+        err?.message ?? "Please check the number and try again.",
+      );
+    }
+  };
+
+  const handleVerify = async () => {
+    if (otp.length < 4) {
+      Alert.alert("Invalid code", "Please enter the OTP you received.");
+      return;
+    }
+    try {
+      await verifyOtp(otp);
+    } catch (err: any) {
+      Alert.alert(
+        "Verification failed",
+        err?.message ?? "The code you entered is incorrect or expired.",
+      );
+    }
+  };
+
+  const handleResend = async () => {
+    try {
+      await resendOtp();
+      setOtp("");
+    } catch (err: any) {
+      Alert.alert("Could not resend OTP", err?.message ?? "Please try again.");
+    }
+  };
+
+  const handleChangeNumber = () => {
+    cancelOtp();
+    setOtp("");
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.inner}>
-        <View style={styles.hero}>
-          <View style={styles.logoContainer}>
-            <Feather name="home" size={48} color="#fff" />
-          </View>
-          <Text style={styles.appName}>Ultrofix</Text>
-          <Text style={styles.tagline}>Professional home services at your doorstep</Text>
-        </View>
-
-        <View style={styles.features}>
-          {[
-            { icon: "check-circle" as const, text: "Verified professionals" },
-            { icon: "shield" as const, text: "Safe & secure service" },
-            { icon: "star" as const, text: "Top-rated providers" },
-          ].map((item) => (
-            <View key={item.text} style={styles.featureRow}>
-              <Feather name={item.icon} size={20} color="#f97316" />
-              <Text style={styles.featureText}>{item.text}</Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.hero}>
+            <View style={styles.logoContainer}>
+              <Feather name="home" size={44} color="#fff" />
             </View>
-          ))}
-        </View>
+            <Text style={styles.appName}>Ultrofix</Text>
+            <Text style={styles.tagline}>
+              Professional home services at your doorstep
+            </Text>
+          </View>
 
-        <View style={styles.footer}>
-          <Pressable
-            style={({ pressed }) => [styles.loginButton, pressed && styles.loginButtonPressed]}
-            onPress={handleLogin}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Text style={styles.loginButtonText}>Continue</Text>
-                <Feather name="arrow-right" size={20} color="#fff" />
-              </>
-            )}
-          </Pressable>
-          <Text style={styles.disclaimer}>
-            By continuing, you agree to our Terms of Service and Privacy Policy
-          </Text>
-        </View>
-      </View>
+          {stage === "phone" ? (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Sign in with your mobile</Text>
+              <Text style={styles.cardSubtitle}>
+                We'll send a 6-digit verification code via SMS.
+              </Text>
+
+              <View style={styles.phoneRow}>
+                <TextInput
+                  style={styles.countryInput}
+                  value={countryCode}
+                  onChangeText={setCountryCode}
+                  keyboardType="phone-pad"
+                  maxLength={5}
+                  autoCorrect={false}
+                />
+                <TextInput
+                  style={styles.phoneInput}
+                  value={phone}
+                  onChangeText={(t) => setPhone(normalizePhone(t))}
+                  placeholder="98765 43210"
+                  placeholderTextColor="#9ca3af"
+                  keyboardType="phone-pad"
+                  maxLength={15}
+                  autoFocus
+                />
+              </View>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.primaryButton,
+                  (!isPhoneValid || isOtpSending) && styles.buttonDisabled,
+                  pressed && styles.buttonPressed,
+                ]}
+                onPress={handleSendOtp}
+                disabled={!isPhoneValid || isOtpSending}
+              >
+                {isOtpSending ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Text style={styles.primaryButtonText}>Send OTP</Text>
+                    <Feather name="arrow-right" size={20} color="#fff" />
+                  </>
+                )}
+              </Pressable>
+
+              <Text style={styles.disclaimer}>
+                By continuing, you agree to our Terms of Service and Privacy
+                Policy.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Enter verification code</Text>
+              <Text style={styles.cardSubtitle}>
+                Sent to {pendingPhoneNumber}.{" "}
+                <Text style={styles.linkText} onPress={handleChangeNumber}>
+                  Change number
+                </Text>
+              </Text>
+
+              <TextInput
+                style={styles.otpInput}
+                value={otp}
+                onChangeText={(t) => setOtp(t.replace(/[^\d]/g, ""))}
+                placeholder="------"
+                placeholderTextColor="#cbd5e1"
+                keyboardType="number-pad"
+                maxLength={6}
+                autoFocus
+              />
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.primaryButton,
+                  (otp.length < 4 || isOtpVerifying) && styles.buttonDisabled,
+                  pressed && styles.buttonPressed,
+                ]}
+                onPress={handleVerify}
+                disabled={otp.length < 4 || isOtpVerifying}
+              >
+                {isOtpVerifying ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Text style={styles.primaryButtonText}>Verify & Continue</Text>
+                    <Feather name="arrow-right" size={20} color="#fff" />
+                  </>
+                )}
+              </Pressable>
+
+              <Pressable
+                onPress={handleResend}
+                disabled={isOtpSending}
+                style={styles.resendRow}
+              >
+                {isOtpSending ? (
+                  <ActivityIndicator color="#f97316" />
+                ) : (
+                  <Text style={styles.linkText}>Resend OTP</Text>
+                )}
+              </Pressable>
+            </View>
+          )}
+
+          <View style={styles.features}>
+            {[
+              { icon: "check-circle" as const, text: "Verified professionals" },
+              { icon: "shield" as const, text: "Safe & secure service" },
+              { icon: "star" as const, text: "Top-rated providers" },
+            ].map((item) => (
+              <View key={item.text} style={styles.featureRow}>
+                <Feather name={item.icon} size={18} color="#f97316" />
+                <Text style={styles.featureText}>{item.text}</Text>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  inner: {
-    flex: 1,
+  container: { flex: 1, backgroundColor: "#fff" },
+  scroll: {
     paddingHorizontal: 24,
     paddingBottom: 32,
-    justifyContent: "space-between",
+    paddingTop: 32,
+    gap: 24,
   },
-  hero: {
-    alignItems: "center",
-    paddingTop: 64,
-    gap: 16,
-  },
+  hero: { alignItems: "center", gap: 12 },
   logoContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 24,
+    width: 80,
+    height: 80,
+    borderRadius: 20,
     backgroundColor: "#f97316",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#f97316",
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowRadius: 12,
+    elevation: 6,
   },
   appName: {
-    fontSize: 32,
+    fontSize: 28,
     fontFamily: "Inter_700Bold",
     color: "#111827",
     letterSpacing: -0.5,
   },
   tagline: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: "Inter_400Regular",
     color: "#6b7280",
     textAlign: "center",
-    lineHeight: 24,
   },
-  features: {
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#f3f4f6",
     gap: 16,
-    paddingVertical: 32,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 1,
   },
-  featureRow: {
+  cardTitle: {
+    fontSize: 18,
+    fontFamily: "Inter_600SemiBold",
+    color: "#111827",
+  },
+  cardSubtitle: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: "#6b7280",
+    lineHeight: 18,
+  },
+  phoneRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "#fff7ed",
-    padding: 16,
+    gap: 8,
+  },
+  countryInput: {
+    width: 72,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
     borderRadius: 12,
-  },
-  featureText: {
-    fontSize: 15,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    fontSize: 16,
     fontFamily: "Inter_500Medium",
-    color: "#374151",
+    color: "#111827",
+    textAlign: "center",
   },
-  footer: {
-    gap: 16,
+  phoneInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    fontSize: 16,
+    fontFamily: "Inter_500Medium",
+    color: "#111827",
   },
-  loginButton: {
+  otpInput: {
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    fontSize: 24,
+    fontFamily: "Inter_600SemiBold",
+    color: "#111827",
+    textAlign: "center",
+    letterSpacing: 8,
+  },
+  primaryButton: {
     backgroundColor: "#f97316",
-    borderRadius: 16,
-    paddingVertical: 18,
+    borderRadius: 14,
+    paddingVertical: 16,
     paddingHorizontal: 24,
     flexDirection: "row",
     alignItems: "center",
@@ -146,20 +349,44 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  loginButtonPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.98 }],
-  },
-  loginButtonText: {
+  buttonDisabled: { opacity: 0.5 },
+  buttonPressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
+  primaryButtonText: {
     color: "#fff",
-    fontSize: 17,
+    fontSize: 16,
     fontFamily: "Inter_600SemiBold",
   },
+  resendRow: {
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  linkText: {
+    color: "#f97316",
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+  },
   disclaimer: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: "Inter_400Regular",
     color: "#9ca3af",
     textAlign: "center",
-    lineHeight: 18,
+    lineHeight: 16,
+  },
+  features: {
+    gap: 10,
+  },
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#fff7ed",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  featureText: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: "#374151",
   },
 });

@@ -3,25 +3,33 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
-import * as AuthSession from "expo-auth-session";
-import * as WebBrowser from "expo-web-browser";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
-
-WebBrowser.maybeCompleteAuthSession();
+import type { FirebaseAuthTypes } from "@react-native-firebase/auth";
 
 const AUTH_TOKEN_KEY = "auth_session_token";
-const ISSUER_URL = "https://replit.com/oidc";
 const IS_WEB = Platform.OS === "web";
+
+type FirebaseAuthFn = () => FirebaseAuthTypes.Module;
+let nativeAuth: FirebaseAuthFn | null = null;
+if (!IS_WEB) {
+  try {
+    nativeAuth = require("@react-native-firebase/auth").default as FirebaseAuthFn;
+  } catch (err) {
+    console.warn("Firebase auth module not available:", err);
+  }
+}
 
 export type UserRole = "consumer" | "provider" | null;
 
 export interface AuthUser {
   id: string;
+  phoneNumber: string | null;
   email: string | null;
   firstName: string | null;
   lastName: string | null;
@@ -33,7 +41,13 @@ interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: () => Promise<void>;
+  isOtpSending: boolean;
+  isOtpVerifying: boolean;
+  pendingPhoneNumber: string | null;
+  sendOtp: (phoneNumberE164: string) => Promise<void>;
+  verifyOtp: (code: string) => Promise<void>;
+  cancelOtp: () => void;
+  resendOtp: () => Promise<void>;
   logout: () => Promise<void>;
   setRole: (role: "consumer" | "provider") => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -43,7 +57,13 @@ const AuthContext = createContext<AuthContextValue>({
   user: null,
   isLoading: true,
   isAuthenticated: false,
-  login: async () => {},
+  isOtpSending: false,
+  isOtpVerifying: false,
+  pendingPhoneNumber: null,
+  sendOtp: async () => {},
+  verifyOtp: async () => {},
+  cancelOtp: () => {},
+  resendOtp: async () => {},
   logout: async () => {},
   setRole: async () => {},
   refreshUser: async () => {},
@@ -56,54 +76,36 @@ function getApiBaseUrl(): string {
   return "";
 }
 
-function getClientId(): string {
-  return process.env.EXPO_PUBLIC_REPL_ID || "";
-}
-
-setAuthTokenGetter(() =>
-  IS_WEB ? Promise.resolve(null) : SecureStore.getItemAsync(AUTH_TOKEN_KEY),
-);
+setAuthTokenGetter(() => SecureStore.getItemAsync(AUTH_TOKEN_KEY));
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  const discovery = AuthSession.useAutoDiscovery(ISSUER_URL);
-  const redirectUri = AuthSession.makeRedirectUri();
-
-  const [request, response, promptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: getClientId(),
-      scopes: ["openid", "email", "profile", "offline_access"],
-      redirectUri,
-      prompt: AuthSession.Prompt.Login,
-    },
-    discovery,
+  const [isOtpSending, setIsOtpSending] = useState(false);
+  const [isOtpVerifying, setIsOtpVerifying] = useState(false);
+  const [pendingPhoneNumber, setPendingPhoneNumber] = useState<string | null>(
+    null,
   );
+  const confirmationRef =
+    useRef<FirebaseAuthTypes.ConfirmationResult | null>(null);
 
   const fetchUser = useCallback(async () => {
     try {
       const apiBase = getApiBaseUrl();
-
-      let fetchOptions: RequestInit;
-      if (IS_WEB) {
-        fetchOptions = { credentials: "include" };
-      } else {
-        const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
-        if (!token) {
-          setUser(null);
-          setIsLoading(false);
-          return;
-        }
-        fetchOptions = { headers: { Authorization: `Bearer ${token}` } };
+      const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+      if (!token) {
+        setUser(null);
+        setIsLoading(false);
+        return;
       }
-
-      const res = await fetch(`${apiBase}/api/auth/user`, fetchOptions);
+      const res = await fetch(`${apiBase}/api/auth/user`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
-
       if (data.user) {
         setUser({
           id: data.user.id,
+          phoneNumber: data.user.phoneNumber ?? null,
           email: data.user.email ?? null,
           firstName: data.user.firstName ?? null,
           lastName: data.user.lastName ?? null,
@@ -111,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: (data.user.role as UserRole) ?? null,
         });
       } else {
-        if (!IS_WEB) await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+        await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
         setUser(null);
       }
     } catch {
@@ -130,84 +132,108 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fetchUser();
   }, [fetchUser]);
 
-  useEffect(() => {
-    if (IS_WEB) return;
-    if (response?.type !== "success" || !request?.codeVerifier) return;
-
-    const { code, state } = response.params;
-
-    (async () => {
-      try {
-        const apiBase = getApiBaseUrl();
-        if (!apiBase) return;
-
-        const exchangeRes = await fetch(
-          `${apiBase}/api/mobile-auth/token-exchange`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              code,
-              code_verifier: request.codeVerifier,
-              redirect_uri: redirectUri,
-              state,
-              nonce: request.nonce,
-            }),
-          },
-        );
-
-        if (!exchangeRes.ok) {
-          setIsLoading(false);
-          return;
-        }
-
-        const data = await exchangeRes.json();
-        if (data.token) {
-          await SecureStore.setItemAsync(AUTH_TOKEN_KEY, data.token);
-          setIsLoading(true);
-          await fetchUser();
-        }
-      } catch {
-        setIsLoading(false);
-      }
-    })();
-  }, [response, request, redirectUri, fetchUser]);
-
-  const login = useCallback(async () => {
-    if (IS_WEB) {
+  const exchangeFirebaseToken = useCallback(
+    async (idToken: string) => {
       const apiBase = getApiBaseUrl();
-      const returnTo = typeof window !== "undefined" ? window.location.href : "/";
-      window.location.href = `${apiBase}/api/login?returnTo=${encodeURIComponent(returnTo)}`;
-      return;
+      const res = await fetch(`${apiBase}/api/auth/firebase-verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error ?? "Server rejected verification");
+      }
+      const data = await res.json();
+      if (!data?.token) throw new Error("Server did not return a session token");
+      await SecureStore.setItemAsync(AUTH_TOKEN_KEY, data.token);
+      setIsLoading(true);
+      await fetchUser();
+    },
+    [fetchUser],
+  );
+
+  const sendOtp = useCallback(async (phoneNumberE164: string) => {
+    if (IS_WEB || !nativeAuth) {
+      throw new Error(
+        "Phone sign-in requires the mobile app. Please use the iOS or Android build.",
+      );
     }
+    setIsOtpSending(true);
     try {
-      await promptAsync();
-    } catch (err) {
-      console.error("Login error:", err);
+      const confirmation = await nativeAuth().signInWithPhoneNumber(
+        phoneNumberE164,
+        true,
+      );
+      confirmationRef.current = confirmation;
+      setPendingPhoneNumber(phoneNumberE164);
+    } finally {
+      setIsOtpSending(false);
     }
-  }, [promptAsync]);
+  }, []);
+
+  const resendOtp = useCallback(async () => {
+    if (!pendingPhoneNumber || !nativeAuth) return;
+    setIsOtpSending(true);
+    try {
+      const confirmation = await nativeAuth().signInWithPhoneNumber(
+        pendingPhoneNumber,
+        true,
+      );
+      confirmationRef.current = confirmation;
+    } finally {
+      setIsOtpSending(false);
+    }
+  }, [pendingPhoneNumber]);
+
+  const verifyOtp = useCallback(
+    async (code: string) => {
+      const confirmation = confirmationRef.current;
+      if (!confirmation) {
+        throw new Error("No OTP request in progress. Please request a new code.");
+      }
+      setIsOtpVerifying(true);
+      try {
+        const credential = await confirmation.confirm(code);
+        const fbUser = credential?.user ?? nativeAuth?.().currentUser;
+        if (!fbUser) throw new Error("Verification did not return a user");
+        const idToken = await fbUser.getIdToken(true);
+        await exchangeFirebaseToken(idToken);
+        confirmationRef.current = null;
+        setPendingPhoneNumber(null);
+      } finally {
+        setIsOtpVerifying(false);
+      }
+    },
+    [exchangeFirebaseToken],
+  );
+
+  const cancelOtp = useCallback(() => {
+    confirmationRef.current = null;
+    setPendingPhoneNumber(null);
+  }, []);
 
   const logout = useCallback(async () => {
     try {
       const apiBase = getApiBaseUrl();
-      if (IS_WEB) {
-        await fetch(`${apiBase}/api/mobile-auth/logout`, {
-          method: "POST",
-          credentials: "include",
-        });
-        setUser(null);
-        return;
-      }
       const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
       if (token) {
-        await fetch(`${apiBase}/api/mobile-auth/logout`, {
+        await fetch(`${apiBase}/api/auth/logout`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
         });
       }
     } catch {
+      // ignore network errors
     } finally {
-      if (!IS_WEB) await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+      try {
+        if (nativeAuth?.().currentUser) await nativeAuth?.().signOut();
+      } catch {
+        // ignore
+      }
+      await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+      confirmationRef.current = null;
+      setPendingPhoneNumber(null);
       setUser(null);
     }
   }, []);
@@ -215,31 +241,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setRole = useCallback(async (role: "consumer" | "provider") => {
     try {
       const apiBase = getApiBaseUrl();
-      let fetchOptions: RequestInit;
-
-      if (IS_WEB) {
-        fetchOptions = {
-          credentials: "include",
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ role }),
-        };
-      } else {
-        const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
-        if (!token) return;
-        fetchOptions = {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ role }),
-        };
-      }
-
-      const res = await fetch(`${apiBase}/api/auth/role`, fetchOptions);
+      const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+      if (!token) return;
+      const res = await fetch(`${apiBase}/api/auth/role`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ role }),
+      });
       if (!res.ok) return;
-
       const data = await res.json();
       if (data.user) {
         setUser((prev) => (prev ? { ...prev, role } : null));
@@ -255,7 +267,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isLoading,
         isAuthenticated: !!user,
-        login,
+        isOtpSending,
+        isOtpVerifying,
+        pendingPhoneNumber,
+        sendOtp,
+        verifyOtp,
+        cancelOtp,
+        resendOtp,
         logout,
         setRole,
         refreshUser,

@@ -15,11 +15,13 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.ultrofix.app"
+      "bundleIdentifier": "com.ultrofix.app",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "backgroundColor": "#f97316",
-      "package": "com.ultrofix.app"
+      "package": "com.ultrofix.app",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -32,7 +34,13 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "@react-native-firebase/app",
+      [
+        "expo-build-properties",
+        {
+          "ios": { "useFrameworks": "static" }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

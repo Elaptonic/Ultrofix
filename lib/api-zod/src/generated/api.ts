@@ -280,6 +280,7 @@ export const GetCurrentAuthUserResponse = zod.object({
   user: zod.union([
     zod.object({
       id: zod.string(),
+      phoneNumber: zod.string().nullish(),
       email: zod.string().nullish(),
       firstName: zod.string().nullish(),
       lastName: zod.string().nullish(),
@@ -297,68 +298,46 @@ export const GetCurrentAuthUserResponse = zod.object({
 });
 
 /**
- * @summary Start the browser OIDC login flow
- */
-export const BeginBrowserLoginQueryParams = zod.object({
-  returnTo: zod.coerce.string().optional(),
-});
-
-/**
- * @summary Complete the browser OIDC login flow
- */
-export const HandleBrowserLoginCallbackQueryParams = zod.object({
-  code: zod.coerce.string().optional(),
-  state: zod.coerce.string().optional(),
-  iss: zod.coerce.string().url().optional(),
-});
-
-/**
- * @summary Clear the session and begin OIDC logout
- */
-export const logoutBrowserSessionHeaderAuthorizationRegExp = new RegExp(
-  "^Bearer .+",
-);
-
-export const LogoutBrowserSessionHeader = zod.object({
-  Authorization: zod
-    .string()
-    .regex(logoutBrowserSessionHeaderAuthorizationRegExp)
-    .optional()
-    .describe("Bearer token for mobile session auth."),
-});
-
-/**
- * @summary Exchange a mobile OIDC code for a session token
+ * @summary Exchange a Firebase ID token (phone-OTP verified) for a session token
  */
 
-export const ExchangeMobileAuthorizationCodeBody = zod.object({
-  code: zod.string().min(1),
-  code_verifier: zod.string().min(1),
-  redirect_uri: zod.string().url().min(1),
-  state: zod.string().min(1),
-  nonce: zod.string().min(1).optional(),
+export const VerifyFirebaseIdTokenBody = zod.object({
+  idToken: zod.string().min(1),
 });
 
-export const ExchangeMobileAuthorizationCodeResponse = zod.object({
+export const VerifyFirebaseIdTokenResponse = zod.object({
   token: zod.string(),
+  user: zod.object({
+    id: zod.string(),
+    phoneNumber: zod.string().nullish(),
+    email: zod.string().nullish(),
+    firstName: zod.string().nullish(),
+    lastName: zod.string().nullish(),
+    profileImageUrl: zod.string().nullish(),
+    role: zod
+      .union([
+        zod.literal("consumer"),
+        zod.literal("provider"),
+        zod.literal(null),
+      ])
+      .nullish(),
+  }),
 });
 
 /**
- * @summary Delete a mobile session token
+ * @summary Delete the current session
  */
-export const logoutMobileSessionHeaderAuthorizationRegExp = new RegExp(
-  "^Bearer .+",
-);
+export const logoutSessionHeaderAuthorizationRegExp = new RegExp("^Bearer .+");
 
-export const LogoutMobileSessionHeader = zod.object({
+export const LogoutSessionHeader = zod.object({
   Authorization: zod
     .string()
-    .regex(logoutMobileSessionHeaderAuthorizationRegExp)
+    .regex(logoutSessionHeaderAuthorizationRegExp)
     .optional()
     .describe("Bearer token for mobile session auth."),
 });
 
-export const LogoutMobileSessionResponse = zod.object({
+export const LogoutSessionResponse = zod.object({
   success: zod.boolean(),
 });
 
@@ -383,6 +362,7 @@ export const SetUserRoleResponse = zod.object({
   user: zod.union([
     zod.object({
       id: zod.string(),
+      phoneNumber: zod.string().nullish(),
       email: zod.string().nullish(),
       firstName: zod.string().nullish(),
       lastName: zod.string().nullish(),

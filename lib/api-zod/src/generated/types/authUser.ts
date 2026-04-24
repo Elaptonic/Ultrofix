@@ -10,6 +10,8 @@ import type { AuthUserRole } from "./authUserRole";
 export interface AuthUser {
   id: string;
   /** @nullable */
+  phoneNumber?: string | null;
+  /** @nullable */
   email?: string | null;
   /** @nullable */
   firstName?: string | null;

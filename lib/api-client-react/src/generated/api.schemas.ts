@@ -136,6 +136,8 @@ export const AuthUserRole = {
 export interface AuthUser {
   id: string;
   /** @nullable */
+  phoneNumber?: string | null;
+  /** @nullable */
   email?: string | null;
   /** @nullable */
   firstName?: string | null;
@@ -151,21 +153,14 @@ export interface AuthUserEnvelope {
   user: AuthUser | null;
 }
 
-export interface MobileTokenExchangeRequest {
+export interface FirebaseVerifyRequest {
   /** @minLength 1 */
-  code: string;
-  /** @minLength 1 */
-  code_verifier: string;
-  /** @minLength 1 */
-  redirect_uri: string;
-  /** @minLength 1 */
-  state: string;
-  /** @minLength 1 */
-  nonce?: string;
+  idToken: string;
 }
 
-export interface MobileTokenExchangeSuccess {
+export interface FirebaseVerifySuccess {
   token: string;
+  user: AuthUser;
 }
 
 export const LogoutSuccessValue = {
@@ -216,14 +211,4 @@ export type MarkAllNotificationsReadBody = {
 
 export type MarkAllNotificationsRead200 = {
   success: boolean;
-};
-
-export type BeginBrowserLoginParams = {
-  returnTo?: string;
-};
-
-export type HandleBrowserLoginCallbackParams = {
-  code?: string;
-  state?: string;
-  iss?: string;
 };
