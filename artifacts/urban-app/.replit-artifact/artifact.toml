@@ -1,6 +1,6 @@
 kind = "mobile"
 previewPath = "/"
-title = "Urban Company"
+title = "Ultrofix"
 version = "1.0.0"
 id = "artifacts/urban-app"
 router = "expo-domain"
