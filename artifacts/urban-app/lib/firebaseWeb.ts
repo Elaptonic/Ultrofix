@@ -9,12 +9,12 @@ import {
 } from "firebase/auth";
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyDmAyQG3RLSEg5S0YrddOV1Q-AKcMUGP7k",
+  apiKey: "AIzaSyBdqFqB0o-wWO-pL5w6yvpMVjV697BBmEo",
   authDomain: "ultrofix-e5ed6.firebaseapp.com",
   projectId: "ultrofix-e5ed6",
   storageBucket: "ultrofix-e5ed6.firebasestorage.app",
   messagingSenderId: "1015159560629",
-  appId: "1:1015159560629:ios:335954c0ad3d604f07a1fc",
+  appId: "1:1015159560629:web:0000000000000000000000",
 };
 
 let app: FirebaseApp | null = null;
