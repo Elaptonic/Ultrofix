@@ -76,7 +76,13 @@ export async function webSendOtp(
       phoneNumberE164,
       verifier,
     );
-  } catch (err) {
+  } catch (err: any) {
+    // Surface the real Firebase failure mode in the console so it's debuggable.
+    console.error("[firebaseWeb] signInWithPhoneNumber failed:", {
+      code: err?.code,
+      message: err?.message,
+      raw: err,
+    });
     // If the verifier was consumed or expired, reset it for next attempt.
     try {
       recaptchaVerifier?.clear();
@@ -84,7 +90,26 @@ export async function webSendOtp(
       // ignore
     }
     recaptchaVerifier = null;
-    throw err;
+    // Translate the most common Firebase error codes into user-friendly messages.
+    const code: string | undefined = err?.code;
+    if (code === "auth/invalid-app-credential" || code === "auth/captcha-check-failed") {
+      throw new Error(
+        "This domain isn't authorized in Firebase. Add the current preview domain under Firebase Console → Authentication → Settings → Authorized domains.",
+      );
+    }
+    if (code === "auth/invalid-phone-number") {
+      throw new Error("That phone number doesn't look right. Use the full international format, e.g. +919876543210.");
+    }
+    if (code === "auth/too-many-requests") {
+      throw new Error("Too many OTP attempts from this device. Try again in a little while.");
+    }
+    if (code === "auth/quota-exceeded") {
+      throw new Error("Daily SMS quota exceeded for this Firebase project.");
+    }
+    if (code === "auth/billing-not-enabled") {
+      throw new Error("Phone Auth requires the Blaze (pay-as-you-go) plan in this Firebase project.");
+    }
+    throw err instanceof Error ? err : new Error(String(err));
   }
 }
 

@@ -19,7 +19,12 @@ import {
 } from "@/lib/firebaseWeb";
 
 const AUTH_TOKEN_KEY = "auth_session_token";
-const IS_WEB = Platform.OS === "web";
+// Detect web both via Platform.OS and via the presence of a real browser
+// environment, so the web branch is taken inside Replit's iframe wrappers
+// where Platform.OS could conceivably resolve unexpectedly.
+const IS_WEB =
+  Platform.OS === "web" ||
+  (typeof window !== "undefined" && typeof document !== "undefined");
 
 type FirebaseAuthFn = () => FirebaseAuthTypes.Module;
 let nativeAuth: FirebaseAuthFn | null = null;
@@ -29,6 +34,17 @@ if (!IS_WEB) {
   } catch (err) {
     console.warn("Firebase auth module not available:", err);
   }
+}
+
+if (typeof console !== "undefined") {
+  console.log(
+    "[auth] Platform.OS=",
+    Platform.OS,
+    "IS_WEB=",
+    IS_WEB,
+    "hasWindow=",
+    typeof window !== "undefined",
+  );
 }
 
 export type UserRole = "consumer" | "provider" | null;
