@@ -48,9 +48,10 @@ A fully-featured Ultrofix-style home services marketplace mobile app built with 
 - **Consumer** — books services, sees home/bookings/saved/profile tabs
 - **Provider** — accepts job leads via WebSocket radar screen
 - `AuthProvider` in `context/auth.tsx` wraps the app; `useAuth()` exposes `user`, `sendOtp`, `verifyOtp`, `cancelOtp`, `resendOtp`, `logout`, `setRole`
-- Platform-aware backend:
-  - **Native (iOS/Android)** — uses `@react-native-firebase/auth` (requires Expo dev build, won't work in Expo Go). Native config files at `artifacts/urban-app/GoogleService-Info.plist` (iOS) and `artifacts/urban-app/google-services.json` (Android).
-  - **Web (Expo Web preview)** — uses the Firebase JS SDK (`firebase/auth`) with an invisible `RecaptchaVerifier`. Web config & helpers live in `artifacts/urban-app/lib/firebaseWeb.ts` (`webSendOtp`, `resetWebRecaptcha`, `getWebAuth`).
+- Platform-aware backend (auto-detected via `USE_JS_SDK` flag in `context/auth.tsx`):
+  - **Native dev build (iOS/Android with `@react-native-firebase` linked)** — uses `@react-native-firebase/auth`. Native config files at `artifacts/urban-app/GoogleService-Info.plist` (iOS) and `artifacts/urban-app/google-services.json` (Android).
+  - **Expo Go (iOS/Android, no native modules)** — auto-falls-back to the Firebase JS SDK in `lib/firebaseWeb.ts`. Auth is initialized with `getReactNativePersistence(AsyncStorage)`. Since the JS SDK's `RecaptchaVerifier` requires DOM, a fake `ApplicationVerifier` is used together with `appVerificationDisabledForTesting=true`. **This means Expo Go can only sign in with phone numbers whitelisted as test numbers in Firebase Console.**
+  - **Web (Expo Web preview)** — uses the Firebase JS SDK with an invisible `RecaptchaVerifier`. Web config & helpers live in `artifacts/urban-app/lib/firebaseWeb.ts` (`webSendOtp`, `resetWebRecaptcha`, `getWebAuth`).
 - Flow: phone (E.164) → Firebase SMS OTP → confirm code → Firebase ID token → backend `/api/auth/firebase-verify` exchanges it for an opaque session token (stored in `expo-secure-store`)
 - `useUserId()` hook in `constants/user.ts` returns the authenticated user's ID (falls back to `"default-user"` if not logged in)
 - Login screen (phone+OTP) → role-select screen → role-gated navigation (consumer→tabs, provider→radar)

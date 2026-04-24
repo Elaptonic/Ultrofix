@@ -19,31 +19,40 @@ import {
 } from "@/lib/firebaseWeb";
 
 const AUTH_TOKEN_KEY = "auth_session_token";
-// Detect web both via Platform.OS and via the presence of a real browser
-// environment, so the web branch is taken inside Replit's iframe wrappers
-// where Platform.OS could conceivably resolve unexpectedly.
-const IS_WEB =
-  Platform.OS === "web" ||
-  (typeof window !== "undefined" && typeof document !== "undefined");
 
 type FirebaseAuthFn = () => FirebaseAuthTypes.Module;
 let nativeAuth: FirebaseAuthFn | null = null;
-if (!IS_WEB) {
+if (Platform.OS !== "web") {
+  // Try to load the native Firebase module. In Expo Go this throws because the
+  // native module is not linked — we just fall back to the Firebase JS SDK.
   try {
-    nativeAuth = require("@react-native-firebase/auth").default as FirebaseAuthFn;
+    const mod = require("@react-native-firebase/auth");
+    // Probe the module: accessing default() will throw "RNFBAppModule not found"
+    // in Expo Go, but works in a proper dev build.
+    if (typeof mod?.default === "function") {
+      mod.default();
+      nativeAuth = mod.default as FirebaseAuthFn;
+    }
   } catch (err) {
-    console.warn("Firebase auth module not available:", err);
+    console.warn(
+      "[auth] Native Firebase not available — falling back to JS SDK. " +
+        "(This is expected in Expo Go.)",
+    );
   }
 }
+
+// `USE_JS_SDK` is true on web AND on native when the @react-native-firebase
+// module isn't usable (e.g. running in Expo Go).
+const USE_JS_SDK = Platform.OS === "web" || !nativeAuth;
 
 if (typeof console !== "undefined") {
   console.log(
     "[auth] Platform.OS=",
     Platform.OS,
-    "IS_WEB=",
-    IS_WEB,
-    "hasWindow=",
-    typeof window !== "undefined",
+    "USE_JS_SDK=",
+    USE_JS_SDK,
+    "nativeAuth=",
+    !!nativeAuth,
   );
 }
 
@@ -95,7 +104,7 @@ function getApiBaseUrl(): string {
   if (process.env.EXPO_PUBLIC_DOMAIN) {
     return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
   }
-  if (IS_WEB && typeof window !== "undefined") {
+  if (USE_JS_SDK && typeof window !== "undefined") {
     return window.location.origin;
   }
   return "";
@@ -182,7 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sendOtp = useCallback(async (phoneNumberE164: string) => {
     setIsOtpSending(true);
     try {
-      if (IS_WEB) {
+      if (USE_JS_SDK) {
         const confirmation = await webSendOtp(phoneNumberE164);
         webConfirmationRef.current = confirmation;
         setPendingPhoneNumber(phoneNumberE164);
@@ -208,7 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!pendingPhoneNumber) return;
     setIsOtpSending(true);
     try {
-      if (IS_WEB) {
+      if (USE_JS_SDK) {
         // Reset reCAPTCHA between attempts so a fresh challenge runs.
         resetWebRecaptcha();
         const confirmation = await webSendOtp(pendingPhoneNumber);
@@ -231,7 +240,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsOtpVerifying(true);
       try {
         let idToken: string;
-        if (IS_WEB) {
+        if (USE_JS_SDK) {
           const confirmation = webConfirmationRef.current;
           if (!confirmation) {
             throw new Error(
@@ -268,7 +277,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const cancelOtp = useCallback(() => {
     nativeConfirmationRef.current = null;
     webConfirmationRef.current = null;
-    if (IS_WEB) resetWebRecaptcha();
+    if (USE_JS_SDK) resetWebRecaptcha();
     setPendingPhoneNumber(null);
   }, []);
 
@@ -286,7 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // ignore network errors
     } finally {
       try {
-        if (IS_WEB) {
+        if (USE_JS_SDK) {
           await getWebAuth().signOut();
         } else if (nativeAuth?.().currentUser) {
           await nativeAuth?.().signOut();
