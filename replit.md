@@ -44,16 +44,18 @@ A fully-featured Ultrofix-style home services marketplace mobile app built with 
 - If no vendor online: falls back to `bookingQueue` auto-acceptance (4 s delay)
 - Vendor sees Accept/Deny modal; Accept emits `vendor:accept` → server updates booking to `accepted`, pushes `booking:status` to consumer + creates notification; Deny emits `vendor:deny` → re-queues fallback
 
-**Auth:** Firebase Phone OTP via `@react-native-firebase/auth` (native only — requires Expo dev build, won't work in Expo Go). Dual-role system:
+**Auth:** Firebase Phone OTP. Dual-role system:
 - **Consumer** — books services, sees home/bookings/saved/profile tabs
 - **Provider** — accepts job leads via WebSocket radar screen
 - `AuthProvider` in `context/auth.tsx` wraps the app; `useAuth()` exposes `user`, `sendOtp`, `verifyOtp`, `cancelOtp`, `resendOtp`, `logout`, `setRole`
+- Platform-aware backend:
+  - **Native (iOS/Android)** — uses `@react-native-firebase/auth` (requires Expo dev build, won't work in Expo Go). Native config files at `artifacts/urban-app/GoogleService-Info.plist` (iOS) and `artifacts/urban-app/google-services.json` (Android).
+  - **Web (Expo Web preview)** — uses the Firebase JS SDK (`firebase/auth`) with an invisible `RecaptchaVerifier`. Web config & helpers live in `artifacts/urban-app/lib/firebaseWeb.ts` (`webSendOtp`, `resetWebRecaptcha`, `getWebAuth`).
 - Flow: phone (E.164) → Firebase SMS OTP → confirm code → Firebase ID token → backend `/api/auth/firebase-verify` exchanges it for an opaque session token (stored in `expo-secure-store`)
 - `useUserId()` hook in `constants/user.ts` returns the authenticated user's ID (falls back to `"default-user"` if not logged in)
 - Login screen (phone+OTP) → role-select screen → role-gated navigation (consumer→tabs, provider→radar)
 - Users can switch roles from the Profile screen
-- Native Firebase config files required at `artifacts/urban-app/GoogleService-Info.plist` (iOS) and `artifacts/urban-app/google-services.json` (Android) before building
-- Web is intentionally non-functional for sign-in (`@react-native-firebase` is native-only); the login screen shows an explanatory error if `sendOtp` is called on web
+- **Firebase Console requirement (web only):** for web OTP to actually deliver SMS, the current Replit dev/preview domain (and the production deploy domain) must be added under Firebase Console → Authentication → Settings → **Authorized domains**. For development without sending real SMS, add a test phone number under Authentication → Sign-in method → Phone → "Phone numbers for testing".
 
 **Storage:** AsyncStorage for saved services and selected address. Profile stored in DB via API. Auth token stored in `expo-secure-store`.
 

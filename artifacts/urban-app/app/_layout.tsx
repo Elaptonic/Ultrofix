@@ -9,7 +9,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Font from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -19,6 +20,25 @@ import { AppProvider } from "@/context/AppContext";
 import { AuthProvider, useAuth } from "@/context/auth";
 
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+
+// On web, ensure Inter fonts always have a system fallback so text is visible
+// immediately even before expo-font finishes injecting the @font-face rules.
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  const styleId = "ultrofix-font-fallback";
+  if (!document.getElementById(styleId)) {
+    const sysFont =
+      'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      @font-face { font-family: "Inter_400Regular"; src: local("${sysFont}"); font-display: swap; }
+      @font-face { font-family: "Inter_500Medium"; src: local("${sysFont}"); font-display: swap; font-weight: 500; }
+      @font-face { font-family: "Inter_600SemiBold"; src: local("${sysFont}"); font-display: swap; font-weight: 600; }
+      @font-face { font-family: "Inter_700Bold"; src: local("${sysFont}"); font-display: swap; font-weight: 700; }
+    `;
+    document.head.appendChild(style);
+  }
+}
 
 SplashScreen.preventAutoHideAsync();
 
@@ -95,13 +115,22 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
+  // Don't block the UI on web if fonts take too long; fall back to system fonts.
+  const [fontTimeoutElapsed, setFontTimeoutElapsed] = useState(false);
   useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
+    const t = setTimeout(() => setFontTimeoutElapsed(true), 1500);
+    return () => clearTimeout(t);
+  }, []);
 
-  if (!fontsLoaded && !fontError) return null;
+  useEffect(() => {
+    if (fontsLoaded || fontError || fontTimeoutElapsed) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [fontsLoaded, fontError, fontTimeoutElapsed]);
+
+  if (!fontsLoaded && !fontError && !fontTimeoutElapsed) {
+    if (typeof window === "undefined") return null;
+  }
 
   return (
     <SafeAreaProvider>

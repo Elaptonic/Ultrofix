@@ -11,6 +11,12 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import type { FirebaseAuthTypes } from "@react-native-firebase/auth";
+import type { ConfirmationResult as WebConfirmationResult } from "firebase/auth";
+import {
+  webSendOtp,
+  resetWebRecaptcha,
+  getWebAuth,
+} from "@/lib/firebaseWeb";
 
 const AUTH_TOKEN_KEY = "auth_session_token";
 const IS_WEB = Platform.OS === "web";
@@ -73,6 +79,9 @@ function getApiBaseUrl(): string {
   if (process.env.EXPO_PUBLIC_DOMAIN) {
     return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
   }
+  if (IS_WEB && typeof window !== "undefined") {
+    return window.location.origin;
+  }
   return "";
 }
 
@@ -86,8 +95,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [pendingPhoneNumber, setPendingPhoneNumber] = useState<string | null>(
     null,
   );
-  const confirmationRef =
+  const nativeConfirmationRef =
     useRef<FirebaseAuthTypes.ConfirmationResult | null>(null);
+  const webConfirmationRef = useRef<WebConfirmationResult | null>(null);
 
   const fetchUser = useCallback(async () => {
     try {
@@ -154,18 +164,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const sendOtp = useCallback(async (phoneNumberE164: string) => {
-    if (IS_WEB || !nativeAuth) {
-      throw new Error(
-        "Phone sign-in requires the mobile app. Please use the iOS or Android build.",
-      );
-    }
     setIsOtpSending(true);
     try {
+      if (IS_WEB) {
+        const confirmation = await webSendOtp(phoneNumberE164);
+        webConfirmationRef.current = confirmation;
+        setPendingPhoneNumber(phoneNumberE164);
+        return;
+      }
+      if (!nativeAuth) {
+        throw new Error(
+          "Phone sign-in requires a native build with Firebase configured.",
+        );
+      }
       const confirmation = await nativeAuth().signInWithPhoneNumber(
         phoneNumberE164,
         true,
       );
-      confirmationRef.current = confirmation;
+      nativeConfirmationRef.current = confirmation;
       setPendingPhoneNumber(phoneNumberE164);
     } finally {
       setIsOtpSending(false);
@@ -173,14 +189,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resendOtp = useCallback(async () => {
-    if (!pendingPhoneNumber || !nativeAuth) return;
+    if (!pendingPhoneNumber) return;
     setIsOtpSending(true);
     try {
+      if (IS_WEB) {
+        // Reset reCAPTCHA between attempts so a fresh challenge runs.
+        resetWebRecaptcha();
+        const confirmation = await webSendOtp(pendingPhoneNumber);
+        webConfirmationRef.current = confirmation;
+        return;
+      }
+      if (!nativeAuth) return;
       const confirmation = await nativeAuth().signInWithPhoneNumber(
         pendingPhoneNumber,
         true,
       );
-      confirmationRef.current = confirmation;
+      nativeConfirmationRef.current = confirmation;
     } finally {
       setIsOtpSending(false);
     }
@@ -188,18 +212,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const verifyOtp = useCallback(
     async (code: string) => {
-      const confirmation = confirmationRef.current;
-      if (!confirmation) {
-        throw new Error("No OTP request in progress. Please request a new code.");
-      }
       setIsOtpVerifying(true);
       try {
-        const credential = await confirmation.confirm(code);
-        const fbUser = credential?.user ?? nativeAuth?.().currentUser;
-        if (!fbUser) throw new Error("Verification did not return a user");
-        const idToken = await fbUser.getIdToken(true);
+        let idToken: string;
+        if (IS_WEB) {
+          const confirmation = webConfirmationRef.current;
+          if (!confirmation) {
+            throw new Error(
+              "No OTP request in progress. Please request a new code.",
+            );
+          }
+          const credential = await confirmation.confirm(code);
+          const fbUser = credential.user ?? getWebAuth().currentUser;
+          if (!fbUser) throw new Error("Verification did not return a user");
+          idToken = await fbUser.getIdToken(true);
+          webConfirmationRef.current = null;
+        } else {
+          const confirmation = nativeConfirmationRef.current;
+          if (!confirmation) {
+            throw new Error(
+              "No OTP request in progress. Please request a new code.",
+            );
+          }
+          const credential = await confirmation.confirm(code);
+          const fbUser = credential?.user ?? nativeAuth?.().currentUser;
+          if (!fbUser) throw new Error("Verification did not return a user");
+          idToken = await fbUser.getIdToken(true);
+          nativeConfirmationRef.current = null;
+        }
         await exchangeFirebaseToken(idToken);
-        confirmationRef.current = null;
         setPendingPhoneNumber(null);
       } finally {
         setIsOtpVerifying(false);
@@ -209,7 +250,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const cancelOtp = useCallback(() => {
-    confirmationRef.current = null;
+    nativeConfirmationRef.current = null;
+    webConfirmationRef.current = null;
+    if (IS_WEB) resetWebRecaptcha();
     setPendingPhoneNumber(null);
   }, []);
 
@@ -227,12 +270,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // ignore network errors
     } finally {
       try {
-        if (nativeAuth?.().currentUser) await nativeAuth?.().signOut();
+        if (IS_WEB) {
+          await getWebAuth().signOut();
+        } else if (nativeAuth?.().currentUser) {
+          await nativeAuth?.().signOut();
+        }
       } catch {
         // ignore
       }
       await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
-      confirmationRef.current = null;
+      nativeConfirmationRef.current = null;
+      webConfirmationRef.current = null;
       setPendingPhoneNumber(null);
       setUser(null);
     }
