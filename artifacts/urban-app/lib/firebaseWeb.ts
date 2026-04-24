@@ -31,6 +31,19 @@ export function getWebAuth(): Auth {
   if (!webAuth) {
     webAuth = getAuth(getFirebaseApp());
     webAuth.useDeviceLanguage();
+    // In development, allow phone numbers added to Firebase Console under
+    // Authentication → Sign-in method → Phone → "Phone numbers for testing"
+    // to bypass real SMS and the reCAPTCHA challenge. The static OTP code
+    // configured for that number in the console is what the user enters.
+    // This setting has NO effect for phone numbers that aren't whitelisted
+    // as test numbers, so it's safe to leave on in dev.
+    if (process.env.NODE_ENV !== "production") {
+      try {
+        webAuth.settings.appVerificationDisabledForTesting = true;
+      } catch {
+        // ignore
+      }
+    }
   }
   return webAuth;
 }
