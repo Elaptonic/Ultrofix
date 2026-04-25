@@ -115,7 +115,7 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
-  // Don't block the UI on web if fonts take too long; fall back to system fonts.
+  // Don't block the UI if fonts take too long; fall back to system fonts.
   const [fontTimeoutElapsed, setFontTimeoutElapsed] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setFontTimeoutElapsed(true), 1500);
@@ -128,9 +128,13 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError, fontTimeoutElapsed]);
 
-  if (!fontsLoaded && !fontError && !fontTimeoutElapsed) {
-    if (typeof window === "undefined") return null;
-  }
+  // Hard safety net: always hide the splash within 4 seconds, no matter what.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => {});
+    }, 4000);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <SafeAreaProvider>

@@ -10,15 +10,19 @@ type Prediction = {
   description: string;
 };
 
+const getGoogleKey = (): string =>
+  process.env.GOOGLE_MAPS_API_KEY ?? process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
+
 const searchGooglePlaces = async (query: string): Promise<Prediction[]> => {
-  const key = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
+  const key = getGoogleKey();
   if (!key) throw new Error("GOOGLE_MAPS_API_KEY not set");
 
   const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
   url.searchParams.set("input", query);
   url.searchParams.set("key", key);
   url.searchParams.set("language", "en");
-  url.searchParams.set("types", "establishment");
+  // No `types` filter so Places returns establishments, addresses, and regions —
+  // important for small shops/buildings that don't fit a single category.
   url.searchParams.set("sessiontoken", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
   const response = await fetch(url.toString());
@@ -77,7 +81,7 @@ const searchNominatim = async (query: string): Promise<Prediction[]> => {
 };
 
 const reverseGeocodeGoogle = async (lat: number, lon: number): Promise<string | null> => {
-  const key = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
+  const key = getGoogleKey();
   if (!key) throw new Error("GOOGLE_MAPS_API_KEY not set");
 
   const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");

@@ -1,6 +1,6 @@
 import { Icon as Feather } from "@/components/Icon";
 import * as Location from "expo-location";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
@@ -15,28 +15,35 @@ export function LocationTracker({ onLocationUpdate, compact }: LocationTrackerPr
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [started, setStarted] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
+  const cbRef = useRef<typeof onLocationUpdate>(undefined);
+  cbRef.current = onLocationUpdate;
 
   useEffect(() => {
     let subscription: Location.LocationSubscription | null = null;
     let cancelled = false;
 
-    const start = async () => {
+    (async () => {
       try {
         setLoading(true);
         setError(null);
-        const { status } = await Location.getForegroundPermissionsAsync();
+        let perm = await Location.getForegroundPermissionsAsync();
+        if (perm.status !== "granted") {
+          perm = await Location.requestForegroundPermissionsAsync();
+        }
         if (cancelled) return;
-        if (status !== "granted") {
+        if (perm.status !== "granted") {
           setError("Location permission denied");
           setLoading(false);
           return;
         }
 
-        const current = await Location.getCurrentPositionAsync({});
+        const current = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
         if (cancelled) return;
         setLocation(current);
-        onLocationUpdate?.(current);
+        cbRef.current?.(current);
         setLoading(false);
 
         subscription = await Location.watchPositionAsync(
@@ -51,25 +58,17 @@ export function LocationTracker({ onLocationUpdate, compact }: LocationTrackerPr
         setError("Unable to fetch location");
         setLoading(false);
       }
-    };
-
-    if (!started) {
-      setStarted(true);
-      start();
-    }
+    })();
 
     return () => {
       cancelled = true;
       subscription?.remove();
     };
-  }, [onLocationUpdate, started]);
+  }, [retryToken]);
 
-  const retry = async () => {
-    setStarted(false);
-    setLocation(null);
-    setError(null);
-    setLoading(true);
-  };
+  const retry = useCallback(() => {
+    setRetryToken((n) => n + 1);
+  }, []);
 
   const coords = location?.coords;
   const label = coords ? `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}` : error ?? "Live location unavailable";
