@@ -10,9 +10,6 @@ type Prediction = {
   description: string;
 };
 
-// ---------------------------------------------------------------------------
-// Google Places (primary) — requires Places API enabled & unrestricted key
-// ---------------------------------------------------------------------------
 const searchGooglePlaces = async (query: string): Promise<Prediction[]> => {
   const key = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
   if (!key) throw new Error("GOOGLE_MAPS_API_KEY not set");
@@ -21,13 +18,11 @@ const searchGooglePlaces = async (query: string): Promise<Prediction[]> => {
   url.searchParams.set("input", query);
   url.searchParams.set("key", key);
   url.searchParams.set("language", "en");
-  // "establishment" finds shops, businesses, buildings; no country restriction so it works everywhere
   url.searchParams.set("types", "establishment");
-  url.searchParams.set("components", "country:in");
   url.searchParams.set("sessiontoken", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
   const response = await fetch(url.toString());
-  const data = await response.json() as {
+  const data = (await response.json()) as {
     status: string;
     predictions?: Array<{ place_id: string; description: string }>;
     error_message?: string;
@@ -42,9 +37,45 @@ const searchGooglePlaces = async (query: string): Promise<Prediction[]> => {
   return (data.predictions ?? []).map((p) => ({ place_id: p.place_id, description: p.description }));
 };
 
-// ---------------------------------------------------------------------------
-// Google reverse geocode (primary)
-// ---------------------------------------------------------------------------
+const searchNominatim = async (query: string): Promise<Prediction[]> => {
+  const url = new URL(`${NOMINATIM_BASE}/search`);
+  url.searchParams.set("q", query);
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("limit", "20");
+  url.searchParams.set("accept-language", "en");
+  url.searchParams.set("dedupe", "1");
+  url.searchParams.set("extratags", "1");
+  url.searchParams.set("namedetails", "1");
+
+  const response = await fetch(url.toString(), { headers: { "User-Agent": NOMINATIM_UA } });
+  if (!response.ok) throw new Error(`Nominatim search failed: ${response.status}`);
+
+  const results: any[] = await response.json();
+  const scored = results
+    .map((item) => {
+      const name = (item.name as string | undefined) ?? (item.display_name as string | undefined) ?? "";
+      const type = String(item.type ?? "");
+      const clazz = String(item.class ?? "");
+      const categoryBoost = ["shop", "building", "amenity", "office", "tourism", "commercial", "residential"].some((v) => clazz.includes(v) || type.includes(v))
+        ? 2
+        : 0;
+      const nameBoost = /shop|building|mall|market|office|tower|complex|plaza|society|apartment|residential|store|restaurant|hotel|cafe|clinic|school/i.test(name)
+        ? 1
+        : 0;
+      return {
+        place_id: String(item.place_id),
+        description: (item.display_name as string) ?? name,
+        score: categoryBoost + nameBoost,
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 15)
+    .map(({ place_id, description }) => ({ place_id, description }));
+
+  return scored;
+};
+
 const reverseGeocodeGoogle = async (lat: number, lon: number): Promise<string | null> => {
   const key = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
   if (!key) throw new Error("GOOGLE_MAPS_API_KEY not set");
@@ -55,7 +86,7 @@ const reverseGeocodeGoogle = async (lat: number, lon: number): Promise<string | 
   url.searchParams.set("language", "en");
 
   const response = await fetch(url.toString());
-  const data = await response.json() as {
+  const data = (await response.json()) as {
     status: string;
     results?: Array<{ formatted_address?: string }>;
     error_message?: string;
@@ -70,33 +101,11 @@ const reverseGeocodeGoogle = async (lat: number, lon: number): Promise<string | 
   return data.results?.[0]?.formatted_address ?? null;
 };
 
-// ---------------------------------------------------------------------------
-// Nominatim (fallback) — open, no key needed
-// ---------------------------------------------------------------------------
-const searchNominatim = async (query: string): Promise<Prediction[]> => {
-  const url = new URL(`${NOMINATIM_BASE}/search`);
-  url.searchParams.set("q", query);
-  url.searchParams.set("format", "json");
-  url.searchParams.set("addressdetails", "1");
-  url.searchParams.set("limit", "15");
-  url.searchParams.set("accept-language", "en");
-  url.searchParams.set("dedupe", "1");
-
-  const response = await fetch(url.toString(), { headers: { "User-Agent": NOMINATIM_UA } });
-  if (!response.ok) throw new Error(`Nominatim search failed: ${response.status}`);
-
-  const results: any[] = await response.json();
-  return results.map((item) => ({
-    place_id: String(item.place_id),
-    description: item.display_name as string,
-  }));
-};
-
 const reverseGeocodeNominatim = async (lat: number, lon: number): Promise<string | null> => {
   const url = new URL(`${NOMINATIM_BASE}/reverse`);
   url.searchParams.set("lat", String(lat));
   url.searchParams.set("lon", String(lon));
-  url.searchParams.set("format", "json");
+  url.searchParams.set("format", "jsonv2");
   url.searchParams.set("addressdetails", "1");
   url.searchParams.set("accept-language", "en");
 
@@ -104,29 +113,27 @@ const reverseGeocodeNominatim = async (lat: number, lon: number): Promise<string
   if (!response.ok) throw new Error(`Nominatim reverse failed: ${response.status}`);
 
   const data: any = await response.json();
-  return (data.display_name as string) ?? null;
+  const name = data.name ?? data.display_name ?? null;
+  return name as string | null;
 };
 
-// ---------------------------------------------------------------------------
-// Routes
-// ---------------------------------------------------------------------------
 router.get("/places/autocomplete", async (req, res) => {
-  const input = req.query["input"] as string | undefined;
+  const input = String(req.query["input"] ?? "").trim();
 
-  if (!input || input.trim().length < 2) {
+  if (input.length < 2) {
     res.json({ predictions: [] });
     return;
   }
 
   try {
-    // Try Google first; fall back to Nominatim if Google rejects the call
-    let predictions: Prediction[];
+    let predictions: Prediction[] = [];
     try {
-      predictions = await searchGooglePlaces(input.trim());
+      predictions = await searchGooglePlaces(input);
     } catch (googleErr) {
       console.warn("[places] Falling back to Nominatim for autocomplete:", (googleErr as Error).message);
-      predictions = await searchNominatim(input.trim());
+      predictions = await searchNominatim(input);
     }
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.json({ predictions });
   } catch (err) {
     console.error("[places] autocomplete error:", err);
@@ -151,6 +158,7 @@ router.get("/places/reverse", async (req, res) => {
       console.warn("[places] Falling back to Nominatim for reverse geocode:", (googleErr as Error).message);
       address = await reverseGeocodeNominatim(lat, lon);
     }
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.json({ address });
   } catch (err) {
     console.error("[places] reverse geocode error:", err);
