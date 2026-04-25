@@ -63,6 +63,15 @@ async function upsertUserFromFirebase(claims: FirebaseClaims) {
 }
 
 router.get("/auth/user", (req: Request, res: Response) => {
+  // Disable HTTP caching for the current-user endpoint. Without this Express
+  // computes an ETag, and a subsequent request that matches gets a bare 304
+  // (no body). React Native's fetch on Android doesn't transparently serve
+  // the cached body for 304s, so the client would parse an empty response,
+  // see `data.user === undefined`, treat the user as logged out, and bounce
+  // back to the login screen right after a successful OTP verify.
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   res.json(
     GetCurrentAuthUserResponse.parse({
       user: req.isAuthenticated() ? req.user : null,

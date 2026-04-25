@@ -33,6 +33,7 @@ export default function LoginScreen() {
     isOtpSending,
     isOtpVerifying,
     pendingPhoneNumber,
+    isAuthenticated,
   } = useAuth();
 
   const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY_CODE);
@@ -92,6 +93,25 @@ export default function LoginScreen() {
     cancelOtp();
     setOtp("");
   };
+
+  // While auth state is true but the navigator hasn't redirected away yet,
+  // show a spinner instead of the phone form so users don't briefly see the
+  // "enter your number" UI right after a successful verify.
+  if (isAuthenticated) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <ActivityIndicator color="#f97316" size="large" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>

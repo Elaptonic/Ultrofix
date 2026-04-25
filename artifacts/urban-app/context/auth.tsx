@@ -134,10 +134,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       const res = await fetch(`${apiBase}/api/auth/user`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          // Never serve a cached response for the current-user endpoint —
+          // otherwise Android can short-circuit with a stale/empty body and
+          // we'd think the session was rejected.
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+        // RN's fetch on Android honours this and bypasses HTTP cache.
+        cache: "no-store" as RequestCache,
       });
-      const data = await res.json();
-      if (data.user) {
+
+      // Only treat 401/403 as "session is invalid". For any other non-2xx
+      // (network blip, gateway error, transient 304 with no body, …) keep
+      // the existing user state and the stored token so we don't bounce
+      // the user back to login spuriously.
+      if (res.status === 401 || res.status === 403) {
+        await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+      if (!res.ok) {
+        setIsLoading(false);
+        return;
+      }
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        // Empty body (e.g. 304) — leave the existing user state untouched.
+        setIsLoading(false);
+        return;
+      }
+
+      if (data?.user) {
         setUser({
           id: data.user.id,
           phoneNumber: data.user.phoneNumber ?? null,
@@ -148,11 +181,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: (data.user.role as UserRole) ?? null,
         });
       } else {
+        // Server explicitly returned `{ user: null }` → session is gone.
         await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
         setUser(null);
       }
     } catch {
-      setUser(null);
+      // Network error — don't tear down the session; just stop loading.
     } finally {
       setIsLoading(false);
     }
