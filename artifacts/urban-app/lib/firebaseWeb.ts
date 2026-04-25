@@ -1,16 +1,12 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import {
   getAuth,
-  initializeAuth,
-  // @ts-ignore - this export exists at runtime even though types omit it.
-  getReactNativePersistence,
   RecaptchaVerifier,
   signInWithPhoneNumber,
-  type ApplicationVerifier,
   type Auth,
   type ConfirmationResult,
+  type UserCredential,
 } from "firebase/auth";
 
 export const firebaseConfig = {
@@ -38,31 +34,17 @@ export function getFirebaseApp(): FirebaseApp {
 
 export function getWebAuth(): Auth {
   if (!webAuth) {
-    if (IS_BROWSER) {
-      webAuth = getAuth(getFirebaseApp());
-    } else {
-      // React Native (Expo Go) — initialize auth with AsyncStorage persistence.
-      try {
-        webAuth = initializeAuth(getFirebaseApp(), {
-          persistence: getReactNativePersistence(AsyncStorage),
-        });
-      } catch {
-        // If already initialized (e.g. Fast Refresh), fall back to getAuth.
-        webAuth = getAuth(getFirebaseApp());
-      }
-    }
+    webAuth = getAuth(getFirebaseApp());
     try {
       webAuth.useDeviceLanguage();
     } catch {
-      // useDeviceLanguage is a no-op on RN
+      // useDeviceLanguage may be a no-op outside the browser
     }
     // In development, allow phone numbers added to Firebase Console under
     // Authentication → Sign-in method → Phone → "Phone numbers for testing"
     // to bypass real SMS and the reCAPTCHA challenge. The static OTP code
     // configured for that number in the console is what the user enters.
-    // This setting has NO effect for phone numbers that aren't whitelisted
-    // as test numbers, so it's safe to leave on in dev.
-    if (process.env.NODE_ENV !== "production") {
+    if (process.env.NODE_ENV !== "production" && IS_BROWSER) {
       try {
         webAuth.settings.appVerificationDisabledForTesting = true;
       } catch {
@@ -101,23 +83,153 @@ function ensureBrowserRecaptcha(): RecaptchaVerifier {
   return recaptchaVerifier;
 }
 
-// Fake verifier used in React Native (Expo Go) environments. Combined with
-// `appVerificationDisabledForTesting = true`, Firebase will accept this for
-// phone numbers that are explicitly whitelisted as test numbers in
-// Firebase Console. Real phone numbers will be rejected.
-const fakeVerifier: ApplicationVerifier = {
-  type: "recaptcha",
-  verify: async () => "fake-token-for-rn-testing",
+// ---------------------------------------------------------------------------
+// REST-based phone-auth flow for React Native (Expo Go).
+//
+// Firebase's JS SDK `signInWithPhoneNumber` requires a verifier object that
+// implements internal methods (`_reset`, `_initialize`, …). On React Native we
+// don't have a real DOM-backed RecaptchaVerifier, and a stubbed object trips
+// the SDK's internals. To avoid that entire surface, we call Firebase's
+// Identity Toolkit REST API directly. This works with phone numbers added
+// under Firebase Console → Authentication → Phone → "Phone numbers for
+// testing" without sending real SMS, and with real numbers when the project
+// is configured for Phone Auth.
+// ---------------------------------------------------------------------------
+
+const IDENTITY_TOOLKIT = "https://identitytoolkit.googleapis.com/v1";
+
+interface RestSendVerificationCodeResponse {
+  sessionInfo?: string;
+  error?: { message?: string; code?: number };
+}
+
+interface RestSignInResponse {
+  idToken?: string;
+  refreshToken?: string;
+  localId?: string;
+  isNewUser?: boolean;
+  error?: { message?: string; code?: number };
+}
+
+async function restSendVerificationCode(
+  phoneNumberE164: string,
+): Promise<string> {
+  const url = `${IDENTITY_TOOLKIT}/accounts:sendVerificationCode?key=${encodeURIComponent(
+    firebaseConfig.apiKey,
+  )}`;
+  const body = {
+    phoneNumber: phoneNumberE164,
+    // Test phone numbers in Firebase Console accept any (or empty) recaptcha
+    // token. Real numbers would need a real reCAPTCHA Enterprise token here,
+    // which Expo Go can't produce — that's why Expo Go is test-numbers only.
+    recaptchaToken: "expo-go-test-token",
+  };
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data: RestSendVerificationCodeResponse = await res.json();
+  if (!res.ok || !data.sessionInfo) {
+    const code = data.error?.message ?? `HTTP ${res.status}`;
+    throw new Error(translateRestError(code));
+  }
+  return data.sessionInfo;
+}
+
+async function restSignInWithVerificationCode(
+  sessionInfo: string,
+  code: string,
+): Promise<{ idToken: string }> {
+  const url = `${IDENTITY_TOOLKIT}/accounts:signInWithPhoneNumber?key=${encodeURIComponent(
+    firebaseConfig.apiKey,
+  )}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionInfo, code }),
+  });
+  const data: RestSignInResponse = await res.json();
+  if (!res.ok || !data.idToken) {
+    const errCode = data.error?.message ?? `HTTP ${res.status}`;
+    throw new Error(translateRestError(errCode));
+  }
+  return { idToken: data.idToken };
+}
+
+function translateRestError(code: string): string {
+  // Firebase REST error message codes are uppercase strings like
+  // CAPTCHA_CHECK_FAILED, INVALID_PHONE_NUMBER, INVALID_CODE, etc.
+  const upper = code.toUpperCase();
+  if (upper.includes("CAPTCHA")) {
+    return "This phone number isn't whitelisted as a test number. In Firebase Console → Authentication → Sign-in method → Phone → 'Phone numbers for testing', add your number with a static code, then try again.";
+  }
+  if (upper.includes("INVALID_PHONE_NUMBER")) {
+    return "That phone number doesn't look right. Use international format, e.g. +919876543210.";
+  }
+  if (upper.includes("MISSING_PHONE_NUMBER")) {
+    return "Please enter a phone number.";
+  }
+  if (upper.includes("QUOTA_EXCEEDED")) {
+    return "Daily SMS quota exceeded for this Firebase project.";
+  }
+  if (upper.includes("TOO_MANY_ATTEMPTS")) {
+    return "Too many OTP attempts from this device. Try again in a little while.";
+  }
+  if (upper.includes("INVALID_CODE")) {
+    return "That code is incorrect. Please try again.";
+  }
+  if (upper.includes("CODE_EXPIRED") || upper.includes("SESSION_EXPIRED")) {
+    return "That code has expired. Tap Resend to get a new one.";
+  }
+  if (upper.includes("MISSING_CODE")) {
+    return "Please enter the verification code.";
+  }
+  if (upper.includes("BILLING_NOT_ENABLED")) {
+    return "Phone Auth requires the Blaze (pay-as-you-go) plan in this Firebase project.";
+  }
+  return `Firebase: ${code}`;
+}
+
+// A ConfirmationResult-shaped object returned from `webSendOtp` on RN. It
+// matches the JS SDK's `ConfirmationResult` shape closely enough that the
+// existing auth-context code can call `.confirm(code)` and then read the
+// resulting user's `.getIdToken()` without branching by platform.
+type RestConfirmation = {
+  verificationId: string;
+  confirm: (code: string) => Promise<UserCredential>;
 };
 
-function ensureVerifier(): ApplicationVerifier {
-  return IS_BROWSER ? ensureBrowserRecaptcha() : fakeVerifier;
+function makeRestConfirmation(sessionInfo: string): RestConfirmation {
+  return {
+    verificationId: sessionInfo,
+    confirm: async (code: string) => {
+      const { idToken } = await restSignInWithVerificationCode(
+        sessionInfo,
+        code,
+      );
+      // Return a UserCredential-compatible shape so auth.tsx can call
+      // `credential.user.getIdToken()` uniformly.
+      return {
+        user: {
+          getIdToken: async () => idToken,
+        },
+      } as unknown as UserCredential;
+    },
+  };
 }
 
 export async function webSendOtp(
   phoneNumberE164: string,
 ): Promise<ConfirmationResult> {
-  const verifier = ensureVerifier();
+  // React Native (Expo Go) → REST API path.
+  if (!IS_BROWSER) {
+    const sessionInfo = await restSendVerificationCode(phoneNumberE164);
+    return makeRestConfirmation(sessionInfo) as unknown as ConfirmationResult;
+  }
+
+  // Browser → SDK + invisible reCAPTCHA.
+  const verifier = ensureBrowserRecaptcha();
   try {
     return await signInWithPhoneNumber(
       getWebAuth(),
@@ -125,28 +237,23 @@ export async function webSendOtp(
       verifier,
     );
   } catch (err: any) {
-    // Surface the real Firebase failure mode in the console so it's debuggable.
     console.error("[firebaseWeb] signInWithPhoneNumber failed:", {
       code: err?.code,
       message: err?.message,
     });
-    // If the verifier was consumed or expired, reset it for next attempt.
     try {
       recaptchaVerifier?.clear();
     } catch {
       // ignore
     }
     recaptchaVerifier = null;
-    // Translate the most common Firebase error codes into user-friendly messages.
     const code: string | undefined = err?.code;
     if (
       code === "auth/invalid-app-credential" ||
       code === "auth/captcha-check-failed"
     ) {
       throw new Error(
-        IS_BROWSER
-          ? "This domain isn't authorized in Firebase. Add the current preview domain under Firebase Console → Authentication → Settings → Authorized domains."
-          : "This phone number isn't whitelisted as a test number. In Expo Go, add it under Firebase Console → Authentication → Sign-in method → Phone → Phone numbers for testing.",
+        "This domain isn't authorized in Firebase. Add the current preview domain under Firebase Console → Authentication → Settings → Authorized domains.",
       );
     }
     if (code === "auth/invalid-phone-number") {
@@ -165,11 +272,6 @@ export async function webSendOtp(
     if (code === "auth/billing-not-enabled") {
       throw new Error(
         "Phone Auth requires the Blaze (pay-as-you-go) plan in this Firebase project.",
-      );
-    }
-    if (code === "auth/missing-app-credential") {
-      throw new Error(
-        "Phone Auth in Expo Go only works with whitelisted test phone numbers. Add yours under Firebase Console → Authentication → Sign-in method → Phone → Phone numbers for testing.",
       );
     }
     throw err instanceof Error ? err : new Error(String(err));
