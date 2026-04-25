@@ -78,6 +78,7 @@ externalPort = 3002
 
 [userenv.shared]
 FIREBASE_PROJECT_ID = "ultrofix-e5ed6"
+GOOGLE_MAPS_API_KEY = "AIzaSyC3SyrYou92izdxbjLJwyP_YPhSkPScM_s"
 
 [nix]
 channel = "stable-25_05"
