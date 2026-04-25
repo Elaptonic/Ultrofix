@@ -15,14 +15,18 @@ export function LocationTracker({ onLocationUpdate, compact }: LocationTrackerPr
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [started, setStarted] = useState(false);
 
   useEffect(() => {
     let subscription: Location.LocationSubscription | null = null;
+    let cancelled = false;
 
     const start = async () => {
       try {
         setLoading(true);
-        const { status } = await Location.requestForegroundPermissionsAsync();
+        setError(null);
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (cancelled) return;
         if (status !== "granted") {
           setError("Location permission denied");
           setLoading(false);
@@ -30,6 +34,7 @@ export function LocationTracker({ onLocationUpdate, compact }: LocationTrackerPr
         }
 
         const current = await Location.getCurrentPositionAsync({});
+        if (cancelled) return;
         setLocation(current);
         onLocationUpdate?.(current);
         setLoading(false);
@@ -37,31 +42,42 @@ export function LocationTracker({ onLocationUpdate, compact }: LocationTrackerPr
         subscription = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.Balanced, timeInterval: 30000, distanceInterval: 50 },
           (next) => {
+            if (cancelled) return;
             setLocation(next);
-            // Do not call onLocationUpdate on watch updates to avoid triggering
-            // expensive reverse geocoding repeatedly
           },
         );
       } catch {
+        if (cancelled) return;
         setError("Unable to fetch location");
         setLoading(false);
       }
     };
 
-    start();
+    if (!started) {
+      setStarted(true);
+      start();
+    }
 
     return () => {
+      cancelled = true;
       subscription?.remove();
     };
-  }, [onLocationUpdate]);
+  }, [onLocationUpdate, started]);
+
+  const retry = async () => {
+    setStarted(false);
+    setLocation(null);
+    setError(null);
+    setLoading(true);
+  };
 
   const coords = location?.coords;
   const label = coords ? `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}` : error ?? "Live location unavailable";
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}> 
       <View style={styles.row}>
-        <View style={[styles.icon, { backgroundColor: colors.primary + "18" }]}>
+        <View style={[styles.icon, { backgroundColor: colors.primary + "18" }]}> 
           <Feather name="crosshair" size={16} color={colors.primary} />
         </View>
         <View style={styles.textWrap}>
@@ -76,8 +92,8 @@ export function LocationTracker({ onLocationUpdate, compact }: LocationTrackerPr
         <Text style={[styles.hint, { color: colors.mutedForeground }]}>Auto-updates while the app is open.</Text>
       )}
       {error && !loading && (
-        <Pressable onPress={() => setError(null)}>
-          <Text style={[styles.retry, { color: colors.primary }]}>Tap to dismiss</Text>
+        <Pressable onPress={retry}>
+          <Text style={[styles.retry, { color: colors.primary }]}>Tap to retry</Text>
         </Pressable>
       )}
     </View>
