@@ -40,6 +40,13 @@
         {
           "ios": { "useFrameworks": "static" }
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Ultrofix needs your location to show customers your position while you're on a job.",
+          "locationWhenInUsePermission": "Ultrofix needs your location to show customers your position while you're on a job."
+        }
       ]
     ],
     "experiments": {

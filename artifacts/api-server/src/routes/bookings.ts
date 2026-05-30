@@ -70,14 +70,23 @@ bookingQueue.process("start-service", async ({ bookingId, userId, serviceName })
 });
 
 router.get("/bookings", async (req, res): Promise<void> => {
-  const { userId } = req.query;
-  const rows = await (userId
-    ? db
-        .select()
-        .from(bookingsTable)
-        .where(eq(bookingsTable.userId, String(userId)))
-        .orderBy(bookingsTable.createdAt)
-    : db.select().from(bookingsTable).orderBy(bookingsTable.createdAt));
+  const { userId, providerId } = req.query;
+  let rows;
+  if (userId) {
+    rows = await db
+      .select()
+      .from(bookingsTable)
+      .where(eq(bookingsTable.userId, String(userId)))
+      .orderBy(bookingsTable.createdAt);
+  } else if (providerId) {
+    rows = await db
+      .select()
+      .from(bookingsTable)
+      .where(eq(bookingsTable.providerId, Number(providerId)))
+      .orderBy(bookingsTable.createdAt);
+  } else {
+    rows = await db.select().from(bookingsTable).orderBy(bookingsTable.createdAt);
+  }
   res.json(rows);
 });
 

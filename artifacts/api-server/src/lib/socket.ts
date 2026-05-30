@@ -105,6 +105,23 @@ export function initSocket(server: HttpServer) {
       },
     );
 
+    socket.on(
+      "location:update",
+      (payload: { bookingId: number; lat: number; lng: number; userId: string }) => {
+        const { bookingId, lat, lng, userId } = payload;
+        emitToUser(userId, "location:update", { bookingId, lat, lng });
+        logger.debug({ bookingId, lat, lng }, "Location relayed to customer");
+      },
+    );
+
+    socket.on(
+      "location:stop",
+      (payload: { bookingId: number; userId: string }) => {
+        emitToUser(payload.userId, "location:stop", { bookingId: payload.bookingId });
+        logger.debug({ bookingId: payload.bookingId }, "Location tracking stopped");
+      },
+    );
+
     socket.on("disconnect", () => {
       for (const [providerId, socketId] of vendorSockets.entries()) {
         if (socketId === socket.id) {

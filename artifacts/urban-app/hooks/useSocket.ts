@@ -24,12 +24,21 @@ export interface BookingStatusEvent {
   status: string;
 }
 
+export interface LocationUpdate {
+  bookingId: number;
+  lat: number;
+  lng: number;
+}
+
 export function useConsumerSocket(
   userId: string | null,
   onBookingStatus?: (event: BookingStatusEvent) => void,
+  onLocationUpdate?: (update: LocationUpdate) => void,
 ) {
   const onStatusRef = useRef(onBookingStatus);
   onStatusRef.current = onBookingStatus;
+  const onLocationRef = useRef(onLocationUpdate);
+  onLocationRef.current = onLocationUpdate;
 
   useEffect(() => {
     if (!userId) return;
@@ -47,6 +56,10 @@ export function useConsumerSocket(
 
     socket.on("booking:status", (event: BookingStatusEvent) => {
       onStatusRef.current?.(event);
+    });
+
+    socket.on("location:update", (update: LocationUpdate) => {
+      onLocationRef.current?.(update);
     });
 
     return () => {
@@ -124,5 +137,16 @@ export function useVendorSocket(
     });
   }, []);
 
-  return { socket: socketRef.current, status, acceptLead, denyLead };
+  const emitLocation = useCallback(
+    (bookingId: number, lat: number, lng: number, userId: string) => {
+      socketRef.current?.emit("location:update", { bookingId, lat, lng, userId });
+    },
+    [],
+  );
+
+  const emitLocationStop = useCallback((bookingId: number, userId: string) => {
+    socketRef.current?.emit("location:stop", { bookingId, userId });
+  }, []);
+
+  return { socket: socketRef.current, status, acceptLead, denyLead, emitLocation, emitLocationStop };
 }

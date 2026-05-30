@@ -30,9 +30,10 @@ export default function BookingsScreen() {
   const { data: bookings, isLoading } = useListBookings({ userId });
 
   const filteredBookings = (bookings ?? []).filter((b) => {
-    if (activeTab === "Upcoming") return b.status === "upcoming";
-    if (activeTab === "Completed") return b.status === "completed";
-    return b.status === "cancelled";
+    const s = (b as any).status as string;
+    if (activeTab === "Upcoming") return ["pending", "accepted", "in_progress", "upcoming"].includes(s);
+    if (activeTab === "Completed") return s === "completed";
+    return s === "cancelled";
   });
 
   const HeaderEl = (
