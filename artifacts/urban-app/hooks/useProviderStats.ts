@@ -20,6 +20,7 @@ export interface BreakdownEntry {
 }
 
 export interface ProviderStats {
+  totalJobs: number;
   todayJobs: number;
   todayEarnings: number;
   monthJobs: number;
@@ -27,6 +28,7 @@ export interface ProviderStats {
   reviewCount: number;
   avgRating: number;
   acceptanceRate: number;
+  memberSince: number | null;
   recentJobs: RecentJob[];
   weekBreakdown: BreakdownEntry[];
   monthBreakdown: BreakdownEntry[];

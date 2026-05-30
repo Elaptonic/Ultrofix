@@ -1,4 +1,4 @@
-import { bookingsTable, db, providersTable } from "@workspace/db";
+import { bookingsTable, db, providersTable, usersTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { emitToVendor } from "../lib/socket";
@@ -132,7 +132,24 @@ router.get("/provider/stats", async (req, res): Promise<void> => {
     });
   }
 
+  // Member since year — look up provider's userId then user's createdAt
+  let memberSince: number | null = null;
+  const [provider] = await db
+    .select({ userId: providersTable.userId })
+    .from(providersTable)
+    .where(eq(providersTable.id, providerId));
+  if (provider?.userId) {
+    const [userRow] = await db
+      .select({ createdAt: usersTable.createdAt })
+      .from(usersTable)
+      .where(eq(usersTable.id, provider.userId));
+    if (userRow?.createdAt) {
+      memberSince = new Date(userRow.createdAt).getFullYear();
+    }
+  }
+
   res.json({
+    totalJobs: allCompleted.length,
     todayJobs,
     todayEarnings,
     monthJobs,
@@ -140,6 +157,7 @@ router.get("/provider/stats", async (req, res): Promise<void> => {
     reviewCount,
     avgRating: Math.round(avgRating * 10) / 10,
     acceptanceRate,
+    memberSince,
     recentJobs,
     weekBreakdown,
     monthBreakdown,

@@ -7,6 +7,8 @@ import { useRouter } from "expo-router";
 import { LocationTracker } from "@/components/LocationTracker";
 import { useAuth } from "@/context/auth";
 import { useColors } from "@/hooks/useColors";
+import { useProviderProfile } from "@/hooks/useProviderProfile";
+import { useProviderStats } from "@/hooks/useProviderStats";
 
 interface MenuRow {
   icon: React.ComponentProps<typeof Feather>["name"];
@@ -21,6 +23,9 @@ export default function VendorProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout, setRole, refreshUser } = useAuth();
+
+  const { data: profile } = useProviderProfile();
+  const { data: stats } = useProviderStats(profile?.id);
 
   const displayName = user?.firstName ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ""}` : "Service Provider";
 
@@ -37,7 +42,7 @@ export default function VendorProfileScreen() {
       { icon: "tool", label: "Skills & Services", sub: "Cleaning, plumbing, electrical…" },
     ],
     [
-      { icon: "star", label: "Reviews & Ratings", sub: "4.8 · 124 reviews" },
+      { icon: "star", label: "Reviews & Ratings", sub: stats?.reviewCount ? `${stats.avgRating} · ${stats.reviewCount} reviews` : "No reviews yet" },
       { icon: "file-text", label: "Documents", sub: "ID, certificates, background check" },
       { icon: "bell", label: "Notifications", sub: "Job alerts, payment updates" },
     ],
@@ -67,9 +72,9 @@ export default function VendorProfileScreen() {
 
       <View style={[styles.statsRow, { backgroundColor: colors.card, borderColor: colors.border }]}> 
         {[
-          { label: "Jobs Done", value: "248" },
-          { label: "Rating", value: "4.8 ★" },
-          { label: "Since", value: "2023" },
+          { label: "Jobs Done", value: stats ? String(stats.totalJobs) : "—" },
+          { label: "Rating", value: stats?.reviewCount ? `${stats.avgRating} ★` : "New" },
+          { label: "Since", value: stats?.memberSince ? String(stats.memberSince) : "—" },
         ].map((s, i) => (
           <View key={i} style={[styles.statItem, i < 2 && { borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: colors.border }]}>
             <Text style={[styles.statValue, { color: colors.foreground }]}>{s.value}</Text>
