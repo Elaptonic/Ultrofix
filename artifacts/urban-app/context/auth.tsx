@@ -82,6 +82,9 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   setRole: (role: "consumer" | "provider") => Promise<void>;
   refreshUser: () => Promise<void>;
+  needsOnboarding: boolean;
+  onboardingChecked: boolean;
+  markOnboardingComplete: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -98,6 +101,9 @@ const AuthContext = createContext<AuthContextValue>({
   logout: async () => {},
   setRole: async () => {},
   refreshUser: async () => {},
+  needsOnboarding: false,
+  onboardingChecked: false,
+  markOnboardingComplete: () => {},
 });
 
 function getApiBaseUrl(): string {
@@ -117,9 +123,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isOtpSending, setIsOtpSending] = useState(false);
   const [isOtpVerifying, setIsOtpVerifying] = useState(false);
-  const [pendingPhoneNumber, setPendingPhoneNumber] = useState<string | null>(
-    null,
-  );
+  const [pendingPhoneNumber, setPendingPhoneNumber] = useState<string | null>(null);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
   const nativeConfirmationRef =
     useRef<FirebaseAuthTypes.ConfirmationResult | null>(null);
   const webConfirmationRef = useRef<WebConfirmationResult | null>(null);
@@ -200,6 +206,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetchUser();
   }, [fetchUser]);
+
+  useEffect(() => {
+    if (!user || user.role !== "provider" || onboardingChecked) return;
+    const apiBase = getApiBaseUrl();
+    const checkOnboarding = async () => {
+      try {
+        let token: string | null = null;
+        try { token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY); } catch {}
+        const res = await fetch(`${apiBase}/api/onboarding/provider/status`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setNeedsOnboarding(!data.onboardingComplete);
+        }
+      } catch {}
+      setOnboardingChecked(true);
+    };
+    checkOnboarding();
+  }, [user?.id, user?.role, onboardingChecked]);
+
+  const markOnboardingComplete = useCallback(() => {
+    setNeedsOnboarding(false);
+    setOnboardingChecked(true);
+  }, []);
 
   const exchangeFirebaseToken = useCallback(
     async (idToken: string) => {
@@ -384,6 +415,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         setRole,
         refreshUser,
+        needsOnboarding,
+        onboardingChecked,
+        markOnboardingComplete,
       }}
     >
       {children}

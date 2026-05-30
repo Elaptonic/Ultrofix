@@ -73,7 +73,7 @@ const STEPS = [
 export default function ProviderOnboardingScreen() {
   const colors = useColors();
   const router = useRouter();
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, markOnboardingComplete } = useAuth();
 
   const [step, setStep] = useState<Step>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -208,6 +208,7 @@ export default function ProviderOnboardingScreen() {
         throw new Error(err.error ?? "Failed to save profile");
       }
 
+      markOnboardingComplete();
       await refreshUser();
       router.replace("/vendor/(tabs)/dashboard");
     } catch (err: any) {

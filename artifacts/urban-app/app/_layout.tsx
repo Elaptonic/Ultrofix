@@ -52,35 +52,9 @@ const queryClient = new QueryClient({
 });
 
 function AuthGate() {
-  const { user, isLoading, isAuthenticated } = useAuth();
+  const { user, isLoading, isAuthenticated, needsOnboarding, onboardingChecked } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const [onboardingChecked, setOnboardingChecked] = useState(false);
-  const [needsOnboarding, setNeedsOnboarding] = useState(false);
-
-  useEffect(() => {
-    if (!isAuthenticated || user?.role !== "provider" || onboardingChecked) return;
-    const BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
-    const check = async () => {
-      try {
-        let token: string | null = null;
-        try {
-          const ss = await import("expo-secure-store");
-          token = await ss.getItemAsync("auth_session_token");
-        } catch {}
-        const res = await fetch(`${BASE}/api/onboarding/provider/status`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          credentials: "include",
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setNeedsOnboarding(!data.onboardingComplete);
-        }
-      } catch {}
-      setOnboardingChecked(true);
-    };
-    check();
-  }, [isAuthenticated, user?.role, onboardingChecked]);
 
   useEffect(() => {
     if (isLoading) return;
