@@ -34,6 +34,7 @@ export default function LoginScreen() {
     isOtpVerifying,
     pendingPhoneNumber,
     isAuthenticated,
+    isLoading,
   } = useAuth();
 
   const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY_CODE);
@@ -94,10 +95,10 @@ export default function LoginScreen() {
     setOtp("");
   };
 
-  // While auth state is true but the navigator hasn't redirected away yet,
-  // show a spinner instead of the phone form so users don't briefly see the
-  // "enter your number" UI right after a successful verify.
-  if (isAuthenticated) {
+  // While auth state is loading, show a spinner so users don't see the login
+  // form briefly during a session restore. Also show spinner while auth is
+  // true but the navigator hasn't redirected yet after a successful verify.
+  if (isLoading || isAuthenticated) {
     return (
       <SafeAreaView style={styles.container}>
         <View

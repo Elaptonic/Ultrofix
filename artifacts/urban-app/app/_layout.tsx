@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Font from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -52,7 +52,10 @@ const queryClient = new QueryClient({
   },
 });
 
+let _lastAuthState = "";
+
 function AuthGate() {
+  "use no memo";
   const { user, isLoading, isAuthenticated, needsOnboarding, onboardingChecked } = useAuth();
   const segments = useSegments();
   const router = useRouter();
@@ -64,13 +67,24 @@ function AuthGate() {
     const inAuthGroup = segments[0] === "login" || segments[0] === "role-select";
     const inOnboarding = segments[0] === "vendor" && segments[1] === "onboarding";
 
+    const current = JSON.stringify({
+      isAuthenticated,
+      role: user?.role,
+      needsOnboarding,
+      onboardingChecked,
+      inAuthGroup,
+      inOnboarding,
+    });
+    if (current === _lastAuthState) return;
+    _lastAuthState = current;
+
     if (!isAuthenticated) {
       if (!inAuthGroup) router.replace("/login");
       return;
     }
 
     if (!user?.role) {
-      if (segments[0] !== "role-select") router.replace("/role-select");
+      if (!inAuthGroup) router.replace("/role-select");
       return;
     }
 
@@ -86,7 +100,7 @@ function AuthGate() {
         router.replace("/(tabs)");
       }
     }
-  }, [isLoading, isAuthenticated, user, segments, router, onboardingChecked, needsOnboarding]);
+  }, [isLoading, isAuthenticated, user, needsOnboarding, onboardingChecked, segments, router]);
 
   return null;
 }
