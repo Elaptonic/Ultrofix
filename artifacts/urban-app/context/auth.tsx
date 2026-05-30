@@ -208,20 +208,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchUser]);
 
   useEffect(() => {
-    if (!user || user.role !== "provider" || onboardingChecked) return;
+    if (!user) {
+      setOnboardingChecked(false);
+      setNeedsOnboarding(false);
+      return;
+    }
+    if (user.role !== "provider" || onboardingChecked) return;
     const apiBase = getApiBaseUrl();
     const checkOnboarding = async () => {
+      let complete = false;
       try {
         let token: string | null = null;
         try { token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY); } catch {}
         const res = await fetch(`${apiBase}/api/onboarding/provider/status`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: "include",
         });
         if (res.ok) {
           const data = await res.json();
-          setNeedsOnboarding(!data.onboardingComplete);
+          complete = !!data.onboardingComplete;
         }
-      } catch {}
+      } catch {
+        complete = false;
+      }
+      setNeedsOnboarding(!complete);
       setOnboardingChecked(true);
     };
     checkOnboarding();
@@ -377,6 +387,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setRole = useCallback(async (role: "consumer" | "provider") => {
+    if (role === "provider") {
+      setOnboardingChecked(false);
+      setNeedsOnboarding(false);
+    }
     try {
       const apiBase = getApiBaseUrl();
       const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
