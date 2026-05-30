@@ -1,53 +1,55 @@
-import * as Notifications from "expo-notifications";
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import { getApiBaseUrl, AUTH_TOKEN_KEY } from "@/context/auth";
 import * as SecureStore from "expo-secure-store";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
-
 export function usePushNotifications(userId: string | undefined) {
   const tokenRegisteredRef = useRef<string | null>(null);
+  const notificationListener = useRef<any>(null);
+  const responseListener = useRef<any>(null);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || Platform.OS === "web") return;
+    let isMounted = true;
 
-    async function registerForPushNotifications() {
-      if (Platform.OS === "web") return;
-
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-
-      if (existingStatus !== "granted") {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-
-      if (finalStatus !== "granted") {
-        console.log("[push] Notification permission not granted");
-        return;
-      }
-
-      let token: Notifications.ExpoPushToken;
+    async function setup() {
       try {
-        token = await Notifications.getExpoPushTokenAsync();
-      } catch (err) {
-        console.log("[push] Could not get push token:", err);
-        return;
-      }
+        // Lazy require: expo-notifications crashes at import time on
+        // Expo Go Android SDK 53+ because remote push is removed there.
+        const Notifications = require("expo-notifications");
 
-      if (tokenRegisteredRef.current === token.data) return;
-      tokenRegisteredRef.current = token.data;
+        Notifications.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowAlert: true,
+            shouldPlaySound: true,
+            shouldSetBadge: true,
+            shouldShowBanner: true,
+            shouldShowList: true,
+          }),
+        });
 
-      try {
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+        if (existingStatus !== "granted") {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+        if (finalStatus !== "granted") {
+          console.log("[push] Notification permission not granted");
+          return;
+        }
+
+        let token;
+        try {
+          token = await Notifications.getExpoPushTokenAsync();
+        } catch (err) {
+          console.log("[push] Could not get push token:", err);
+          return;
+        }
+        if (!isMounted) return;
+        if (tokenRegisteredRef.current === token.data) return;
+        tokenRegisteredRef.current = token.data;
+
         const authToken = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
         const apiBase = getApiBaseUrl();
         await fetch(`${apiBase}/api/notifications/push-token`, {
@@ -59,30 +61,27 @@ export function usePushNotifications(userId: string | undefined) {
           body: JSON.stringify({ pushToken: token.data }),
         });
         console.log("[push] Token registered:", token.data);
+
+        notificationListener.current = Notifications.addNotificationReceivedListener(
+          (n: any) => {
+            console.log("[push] Notification received:", n.request.content.title);
+          },
+        );
+        responseListener.current = Notifications.addNotificationResponseReceivedListener(
+          (r: any) => {
+            console.log("[push] Notification tapped, data:", r.notification.request.content.data);
+          },
+        );
       } catch (err) {
-        console.log("[push] Failed to register token:", err);
+        console.log("[push] Setup failed:", err);
       }
     }
 
-    registerForPushNotifications();
-  }, [userId]);
-
-  const notificationListener = useRef<Notifications.EventSubscription | null>(null);
-  const responseListener = useRef<Notifications.EventSubscription | null>(null);
-
-  useEffect(() => {
-    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
-      console.log("[push] Notification received:", notification.request.content.title);
-    });
-
-    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data as Record<string, unknown>;
-      console.log("[push] Notification tapped, data:", data);
-    });
-
+    setup();
     return () => {
-      notificationListener.current?.remove();
-      responseListener.current?.remove();
+      isMounted = false;
+      notificationListener.current?.remove?.();
+      responseListener.current?.remove?.();
     };
-  }, []);
+  }, [userId]);
 }
