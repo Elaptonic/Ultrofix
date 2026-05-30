@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { bookingQueue } from "../lib/queue";
 import { RAZORPAY_KEY_ID, createRazorpayOrder } from "../lib/razorpay";
-import { clearPendingLead, emitToUser, getIO, markPendingLead, vendorSockets } from "../lib/socket";
+import { clearPendingLead, emitToUser, emitToVendor, getIO, markPendingLead, vendorSockets } from "../lib/socket";
 import { sendPushNotification } from "../lib/push";
 import { emitProviderStats } from "./stats";
 
@@ -181,43 +181,34 @@ router.post("/bookings", async (req, res): Promise<void> => {
   const matchResult = await assignNearestProvider(service.category, DEFAULT_LAT, DEFAULT_LNG);
 
   if (matchResult.success) {
-    const vendorSocketId = vendorSockets.get(matchResult.provider.id);
-    if (vendorSocketId) {
-      const leadPayload = {
-        bookingId: booking.id,
-        serviceName: service.name,
-        category: service.category,
-        providerName: provider.name,
-        date: booking.date,
-        time: booking.time,
-        address: booking.address,
-        price: booking.price,
-        userId: String(userId),
-        providerId: matchResult.provider.id,
-        distanceKm: matchResult.distanceKm,
-      };
-      getIO()?.to(vendorSocketId).emit("NEW_LEAD", leadPayload);
-      markPendingLead(booking.id, LEAD_TIMEOUT_MS, () => {
-        bookingQueue.add(
-          "vendor-assignment",
-          {
-            bookingId: booking.id,
-            userId: String(userId),
-            serviceName: service.name,
-            providerName: provider.name,
-          },
-          { delay: 0 },
-        );
-      });
-    } else {
-      clearPendingLead(booking.id);
-      bookingQueue.add("vendor-assignment", {
-        bookingId: booking.id,
-        userId: String(userId),
-        serviceName: service.name,
-        providerName: provider.name,
-      });
-    }
+    const leadPayload = {
+      bookingId: booking.id,
+      serviceName: service.name,
+      category: service.category,
+      providerName: provider.name,
+      date: booking.date,
+      time: booking.time,
+      address: booking.address,
+      price: booking.price,
+      userId: String(userId),
+      providerId: matchResult.provider.id,
+      distanceKm: matchResult.distanceKm,
+    };
+    // Emit to the vendor's room so ALL their sockets receive the lead,
+    // regardless of which socket registered last in vendorSockets map.
+    emitToVendor(matchResult.provider.id, "NEW_LEAD", leadPayload);
+    markPendingLead(booking.id, LEAD_TIMEOUT_MS, () => {
+      bookingQueue.add(
+        "vendor-assignment",
+        {
+          bookingId: booking.id,
+          userId: String(userId),
+          serviceName: service.name,
+          providerName: provider.name,
+        },
+        { delay: 0 },
+      );
+    });
   } else {
     bookingQueue.add("vendor-assignment", {
       bookingId: booking.id,
