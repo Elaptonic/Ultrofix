@@ -16,6 +16,27 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+router.get("/providers/me", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const userId = (req.user as { id?: string } | undefined)?.id;
+  if (!userId) {
+    res.status(401).json({ error: "No user in session" });
+    return;
+  }
+  const [provider] = await db
+    .select()
+    .from(providersTable)
+    .where(eq(providersTable.userId, userId));
+  if (!provider) {
+    res.status(404).json({ error: "Provider not found for this user" });
+    return;
+  }
+  res.json(provider);
+});
+
 router.get("/providers", async (req, res): Promise<void> => {
   const { category } = req.query;
   const rows = await (category

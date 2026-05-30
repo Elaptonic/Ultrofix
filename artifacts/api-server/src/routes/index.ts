@@ -9,6 +9,7 @@ import placesRouter from "./places";
 import profileRouter from "./profile";
 import providersRouter from "./providers";
 import servicesRouter from "./services";
+import statsRouter from "./stats";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(notificationsRouter);
 router.use(paymentsRouter);
 router.use(placesRouter);
 router.use(onboardingRouter);
+router.use(statsRouter);
 
 export default router;

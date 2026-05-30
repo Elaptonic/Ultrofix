@@ -1,6 +1,7 @@
 import { Icon as Feather } from "@/components/Icon";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -11,56 +12,56 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
+import { useProviderProfile } from "@/hooks/useProviderProfile";
+import { useProviderStats } from "@/hooks/useProviderStats";
+import type { BreakdownEntry } from "@/hooks/useProviderStats";
 
 const PERIODS = ["Week", "Month", "Year"] as const;
 type Period = (typeof PERIODS)[number];
 
-const EARNINGS_DATA: Record<Period, { total: string; jobs: number; avg: string; payouts: Array<{ date: string; amount: number; jobs: number }> }> = {
-  Week: {
-    total: "₹8,598",
-    jobs: 6,
-    avg: "₹1,433",
-    payouts: [
-      { date: "Today", amount: 1499, jobs: 1 },
-      { date: "Yesterday", amount: 899, jobs: 1 },
-      { date: "Mon", amount: 2400, jobs: 2 },
-      { date: "Sun", amount: 1800, jobs: 1 },
-      { date: "Sat", amount: 2000, jobs: 1 },
-    ],
-  },
-  Month: {
-    total: "₹28,400",
-    jobs: 22,
-    avg: "₹1,291",
-    payouts: [
-      { date: "Week 3", amount: 8598, jobs: 6 },
-      { date: "Week 2", amount: 7200, jobs: 5 },
-      { date: "Week 1", amount: 6900, jobs: 5 },
-      { date: "Week 0", amount: 5702, jobs: 6 },
-    ],
-  },
-  Year: {
-    total: "₹3,12,800",
-    jobs: 248,
-    avg: "₹1,261",
-    payouts: [
-      { date: "Q1 2026", amount: 78400, jobs: 62 },
-      { date: "Q4 2025", amount: 92000, jobs: 73 },
-      { date: "Q3 2025", amount: 82000, jobs: 65 },
-      { date: "Q2 2025", amount: 60400, jobs: 48 },
-    ],
-  },
-};
+const BAR_COLORS = ["#f97316", "#fb923c", "#fdba74", "#fed7aa", "#ffedd5", "#fef3c7", "#fde68a"];
 
-const BAR_COLORS = ["#f97316", "#fb923c", "#fdba74", "#fed7aa", "#ffedd5"];
+function fmtINR(n: number): string {
+  if (n >= 100_000) return `₹${(n / 100_000).toFixed(1)}L`;
+  if (n >= 1_000) return `₹${(n / 1_000).toFixed(1)}k`;
+  return `₹${n}`;
+}
 
 export default function VendorEarningsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [period, setPeriod] = useState<Period>("Month");
 
-  const data = EARNINGS_DATA[period];
-  const maxAmount = Math.max(...data.payouts.map((p) => p.amount));
+  const { data: profile } = useProviderProfile();
+  const { data: stats, isLoading } = useProviderStats(profile?.id);
+
+  const breakdown: BreakdownEntry[] =
+    period === "Week"
+      ? (stats?.weekBreakdown ?? [])
+      : period === "Month"
+        ? (stats?.monthBreakdown ?? [])
+        : (stats?.yearBreakdown ?? []);
+
+  const totalEarnings =
+    period === "Week"
+      ? (stats?.weekBreakdown ?? []).reduce((s, e) => s + e.amount, 0)
+      : period === "Month"
+        ? (stats?.monthEarnings ?? 0)
+        : (stats?.yearBreakdown ?? []).reduce((s, e) => s + e.amount, 0);
+
+  const totalJobs =
+    period === "Week"
+      ? (stats?.weekBreakdown ?? []).reduce((s, e) => s + e.jobs, 0)
+      : period === "Month"
+        ? (stats?.monthJobs ?? 0)
+        : (stats?.yearBreakdown ?? []).reduce((s, e) => s + e.jobs, 0);
+
+  const avgPerJob =
+    totalJobs > 0 ? Math.round(totalEarnings / totalJobs) : 0;
+
+  const maxAmount = breakdown.length > 0
+    ? Math.max(...breakdown.map((e) => e.amount), 1)
+    : 1;
 
   return (
     <ScrollView
@@ -116,18 +117,34 @@ export default function VendorEarningsScreen() {
         ]}
       >
         <Text style={styles.summaryLabel}>Total Earned</Text>
-        <Text style={styles.summaryTotal}>{data.total}</Text>
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryItem}>
-            <Feather name="briefcase" size={14} color="rgba(255,255,255,0.8)" />
-            <Text style={styles.summaryItemText}>{data.jobs} jobs</Text>
-          </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryItem}>
-            <Feather name="trending-up" size={14} color="rgba(255,255,255,0.8)" />
-            <Text style={styles.summaryItemText}>{data.avg} avg</Text>
-          </View>
-        </View>
+        {isLoading ? (
+          <ActivityIndicator color="#fff" style={{ marginVertical: 8 }} />
+        ) : (
+          <>
+            <Text style={styles.summaryTotal}>{fmtINR(totalEarnings)}</Text>
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryItem}>
+                <Feather
+                  name="briefcase"
+                  size={14}
+                  color="rgba(255,255,255,0.8)"
+                />
+                <Text style={styles.summaryItemText}>{totalJobs} jobs</Text>
+              </View>
+              <View style={styles.summaryDivider} />
+              <View style={styles.summaryItem}>
+                <Feather
+                  name="trending-up"
+                  size={14}
+                  color="rgba(255,255,255,0.8)"
+                />
+                <Text style={styles.summaryItemText}>
+                  {avgPerJob > 0 ? `${fmtINR(avgPerJob)} avg` : "No data"}
+                </Text>
+              </View>
+            </View>
+          </>
+        )}
       </View>
 
       <View style={styles.section}>
@@ -140,42 +157,71 @@ export default function VendorEarningsScreen() {
             { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
-          <View style={styles.barsRow}>
-            {data.payouts.map((p, i) => {
-              const barHeight = Math.max(8, (p.amount / maxAmount) * 120);
-              return (
-                <View key={i} style={styles.barCol}>
-                  <Text
-                    style={[styles.barAmount, { color: colors.mutedForeground }]}
-                  >
-                    ₹{p.amount >= 1000 ? (p.amount / 1000).toFixed(0) + "k" : p.amount}
-                  </Text>
-                  <View style={styles.barTrack}>
-                    <View
+          {isLoading ? (
+            <ActivityIndicator
+              color={colors.primary}
+              style={{ paddingVertical: 40 }}
+            />
+          ) : breakdown.every((e) => e.amount === 0) ? (
+            <View style={styles.emptyChart}>
+              <Text
+                style={[styles.emptyText, { color: colors.mutedForeground }]}
+              >
+                No earnings data for this period
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.barsRow}>
+              {breakdown.map((entry, i) => {
+                const barHeight = Math.max(
+                  8,
+                  (entry.amount / maxAmount) * 120,
+                );
+                return (
+                  <View key={i} style={styles.barCol}>
+                    <Text
                       style={[
-                        styles.bar,
-                        {
-                          height: barHeight,
-                          backgroundColor: BAR_COLORS[i % BAR_COLORS.length],
-                        },
+                        styles.barAmount,
+                        { color: colors.mutedForeground },
                       ]}
-                    />
+                    >
+                      {entry.amount > 0
+                        ? fmtINR(entry.amount)
+                        : ""}
+                    </Text>
+                    <View style={styles.barTrack}>
+                      <View
+                        style={[
+                          styles.bar,
+                          {
+                            height: entry.amount > 0 ? barHeight : 4,
+                            backgroundColor:
+                              entry.amount > 0
+                                ? BAR_COLORS[i % BAR_COLORS.length]
+                                : colors.border,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.barLabel,
+                        { color: colors.mutedForeground },
+                      ]}
+                    >
+                      {entry.date}
+                    </Text>
                   </View>
-                  <Text
-                    style={[styles.barLabel, { color: colors.mutedForeground }]}
-                  >
-                    {p.date}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
+                );
+              })}
+            </View>
+          )}
         </View>
       </View>
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-          Payout History
+          History
         </Text>
         <View
           style={[
@@ -183,75 +229,71 @@ export default function VendorEarningsScreen() {
             { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
-          {data.payouts.map((p, idx) => (
-            <View key={idx}>
-              {idx > 0 && (
-                <View
-                  style={[styles.divider, { backgroundColor: colors.border }]}
-                />
-              )}
-              <View style={styles.payoutRow}>
-                <View
-                  style={[
-                    styles.payoutIcon,
-                    { backgroundColor: colors.primary + "15" },
-                  ]}
-                >
-                  <Feather name="arrow-up-right" size={16} color={colors.primary} />
-                </View>
-                <View style={styles.payoutInfo}>
-                  <Text
-                    style={[styles.payoutDate, { color: colors.foreground }]}
-                  >
-                    {p.date}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.payoutJobs,
-                      { color: colors.mutedForeground },
-                    ]}
-                  >
-                    {p.jobs} {p.jobs === 1 ? "job" : "jobs"} completed
-                  </Text>
-                </View>
-                <Text
-                  style={[styles.payoutAmount, { color: "#22c55e" }]}
-                >
-                  +₹{p.amount.toLocaleString("en-IN")}
-                </Text>
-              </View>
+          {isLoading ? (
+            <ActivityIndicator
+              color={colors.primary}
+              style={{ paddingVertical: 24 }}
+            />
+          ) : breakdown.filter((e) => e.amount > 0).length === 0 ? (
+            <View style={styles.emptyRow}>
+              <Text
+                style={[styles.emptyText, { color: colors.mutedForeground }]}
+              >
+                No completed jobs in this period
+              </Text>
             </View>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-          Payment Method
-        </Text>
-        <View
-          style={[
-            styles.bankCard,
-            { backgroundColor: colors.card, borderColor: colors.border },
-          ]}
-        >
-          <View
-            style={[
-              styles.bankIcon,
-              { backgroundColor: colors.primary + "15" },
-            ]}
-          >
-            <Feather name="credit-card" size={20} color={colors.primary} />
-          </View>
-          <View style={styles.bankInfo}>
-            <Text style={[styles.bankName, { color: colors.foreground }]}>
-              HDFC Bank ••••4521
-            </Text>
-            <Text style={[styles.bankSub, { color: colors.mutedForeground }]}>
-              Savings Account · Linked
-            </Text>
-          </View>
-          <Feather name="check-circle" size={18} color="#22c55e" />
+          ) : (
+            breakdown
+              .filter((e) => e.amount > 0)
+              .map((entry, idx) => (
+                <View key={idx}>
+                  {idx > 0 && (
+                    <View
+                      style={[
+                        styles.divider,
+                        { backgroundColor: colors.border },
+                      ]}
+                    />
+                  )}
+                  <View style={styles.payoutRow}>
+                    <View
+                      style={[
+                        styles.payoutIcon,
+                        { backgroundColor: colors.primary + "15" },
+                      ]}
+                    >
+                      <Feather
+                        name="arrow-up-right"
+                        size={16}
+                        color={colors.primary}
+                      />
+                    </View>
+                    <View style={styles.payoutInfo}>
+                      <Text
+                        style={[
+                          styles.payoutDate,
+                          { color: colors.foreground },
+                        ]}
+                      >
+                        {entry.date}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.payoutJobs,
+                          { color: colors.mutedForeground },
+                        ]}
+                      >
+                        {entry.jobs}{" "}
+                        {entry.jobs === 1 ? "job" : "jobs"} completed
+                      </Text>
+                    </View>
+                    <Text style={[styles.payoutAmount, { color: "#22c55e" }]}>
+                      +₹{entry.amount.toLocaleString("en-IN")}
+                    </Text>
+                  </View>
+                </View>
+              ))
+          )}
         </View>
       </View>
     </ScrollView>
@@ -289,6 +331,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 10,
+    minHeight: 120,
+    justifyContent: "center",
   },
   summaryLabel: {
     color: "rgba(255,255,255,0.8)",
@@ -329,12 +373,16 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     padding: 20,
+    minHeight: 100,
   },
+  emptyChart: { paddingVertical: 32, alignItems: "center" },
+  emptyRow: { paddingVertical: 24, alignItems: "center" },
+  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular" },
   barsRow: {
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-around",
-    gap: 8,
+    gap: 4,
     height: 160,
   },
   barCol: {
@@ -348,13 +396,9 @@ const styles = StyleSheet.create({
     height: 120,
     justifyContent: "flex-end",
   },
-  bar: {
-    width: "100%",
-    borderRadius: 6,
-    minHeight: 8,
-  },
-  barAmount: { fontSize: 10, fontFamily: "Inter_400Regular" },
-  barLabel: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  bar: { width: "100%", borderRadius: 6, minHeight: 4 },
+  barAmount: { fontSize: 9, fontFamily: "Inter_400Regular" },
+  barLabel: { fontSize: 10, fontFamily: "Inter_500Medium" },
   payoutList: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
   payoutRow: {
     flexDirection: "row",
@@ -375,22 +419,4 @@ const styles = StyleSheet.create({
   payoutDate: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   payoutJobs: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
   payoutAmount: { fontSize: 15, fontFamily: "Inter_700Bold" },
-  bankCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-  },
-  bankIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bankInfo: { flex: 1 },
-  bankName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  bankSub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
 });

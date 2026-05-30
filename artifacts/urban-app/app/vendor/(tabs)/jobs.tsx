@@ -1,6 +1,7 @@
 import { Icon as Feather } from "@/components/Icon";
 import { getApiBaseUrl } from "@/context/auth";
 import { useColors } from "@/hooks/useColors";
+import { useProviderProfile } from "@/hooks/useProviderProfile";
 import { useProviderTracking } from "@/hooks/useProviderTracking";
 import { type NewLead, useVendorSocket } from "@/hooks/useSocket";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -17,8 +18,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-const PROVIDER_ID = 1;
 
 const STATUS_COLOR: Record<string, string> = {
   connecting: "#f59e0b",
@@ -54,6 +53,7 @@ function useProviderBookings(providerId: number) {
       if (!res.ok) throw new Error("Failed to fetch provider bookings");
       return res.json();
     },
+    enabled: !!providerId,
     refetchInterval: 8000,
   });
 }
@@ -76,18 +76,21 @@ export default function VendorJobsScreen() {
   const [isOnline, setIsOnline] = useState(false);
   const [trackingJob, setTrackingJob] = useState<{ bookingId: number; userId: string } | null>(null);
 
+  const { data: profile } = useProviderProfile();
+  const providerId = profile?.id ?? null;
+
   const handleNewLead = useCallback((lead: NewLead) => {
     setCurrentLead(lead);
   }, []);
 
   const { status, acceptLead, denyLead, emitLocation, emitLocationStop } = useVendorSocket(
-    isOnline ? PROVIDER_ID : null,
+    isOnline ? providerId : null,
     handleNewLead,
   );
 
   useProviderTracking({ emitLocation, emitLocationStop }, trackingJob);
 
-  const { data: providerBookings = [] } = useProviderBookings(PROVIDER_ID);
+  const { data: providerBookings = [] } = useProviderBookings(providerId ?? 0);
 
   const activeBookings = providerBookings.filter(
     (b) => b.status === "accepted" || b.status === "in_progress",
@@ -98,13 +101,13 @@ export default function VendorJobsScreen() {
   const handleStart = async (booking: ProviderBooking) => {
     await patchBooking(booking.id, "in_progress");
     setTrackingJob({ bookingId: booking.id, userId: booking.userId });
-    qc.invalidateQueries({ queryKey: ["provider-bookings", PROVIDER_ID] });
+    qc.invalidateQueries({ queryKey: ["provider-bookings", providerId] });
   };
 
   const handleComplete = async (booking: ProviderBooking) => {
     await patchBooking(booking.id, "completed");
     setTrackingJob(null);
-    qc.invalidateQueries({ queryKey: ["provider-bookings", PROVIDER_ID] });
+    qc.invalidateQueries({ queryKey: ["provider-bookings", providerId] });
   };
 
   const pulse1 = useRef(new Animated.Value(0)).current;

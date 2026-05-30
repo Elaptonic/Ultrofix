@@ -1,6 +1,7 @@
 import { Icon as Feather } from "@/components/Icon";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -12,41 +13,26 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/auth";
 import { useColors } from "@/hooks/useColors";
+import { useProviderProfile } from "@/hooks/useProviderProfile";
+import { useProviderStats } from "@/hooks/useProviderStats";
 
-interface StatCard {
-  icon: React.ComponentProps<typeof Feather>["name"];
-  label: string;
-  value: string;
-  sub: string;
-  color: string;
+function fmtINR(n: number): string {
+  if (n >= 100_000) return `₹${(n / 100_000).toFixed(1)}L`;
+  if (n >= 1_000) return `₹${(n / 1_000).toFixed(0)}k`;
+  return `₹${n}`;
 }
 
-const RECENT_JOBS = [
-  {
-    id: 1,
-    service: "Deep House Cleaning",
-    customer: "Priya S.",
-    date: "Today, 10:00 AM",
-    amount: 1499,
-    status: "completed",
-  },
-  {
-    id: 2,
-    service: "Plumbing Repair",
-    customer: "Rahul M.",
-    date: "Yesterday, 2:30 PM",
-    amount: 899,
-    status: "completed",
-  },
-  {
-    id: 3,
-    service: "Electrical Work",
-    customer: "Anita K.",
-    date: "Apr 14, 11:00 AM",
-    amount: 1200,
-    status: "completed",
-  },
-];
+function fmtDate(dateStr: string): string {
+  try {
+    return new Date(dateStr).toLocaleDateString("en-IN", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
+  } catch {
+    return dateStr;
+  }
+}
 
 const STATUS_COLOR: Record<string, string> = {
   completed: "#22c55e",
@@ -60,37 +46,40 @@ export default function VendorDashboard() {
   const { user } = useAuth();
   const [isOnline, setIsOnline] = useState(false);
 
+  const { data: profile } = useProviderProfile();
+  const { data: stats, isLoading } = useProviderStats(profile?.id);
+
   const displayName = user?.firstName
     ? `${user.firstName}${user.lastName ? " " + user.lastName : ""}`
     : "Provider";
 
-  const stats: StatCard[] = [
+  const statCards = [
     {
-      icon: "briefcase",
+      icon: "briefcase" as const,
       label: "Jobs Today",
-      value: "3",
-      sub: "+2 from yesterday",
+      value: isLoading ? "—" : String(stats?.todayJobs ?? 0),
+      sub: isLoading ? "" : `₹${(stats?.todayEarnings ?? 0).toLocaleString("en-IN")} earned`,
       color: colors.primary,
     },
     {
-      icon: "dollar-sign",
+      icon: "dollar-sign" as const,
       label: "Today's Earnings",
-      value: "₹3,598",
-      sub: "Across 3 jobs",
+      value: isLoading ? "—" : fmtINR(stats?.todayEarnings ?? 0),
+      sub: isLoading ? "" : `${stats?.todayJobs ?? 0} ${stats?.todayJobs === 1 ? "job" : "jobs"}`,
       color: "#22c55e",
     },
     {
-      icon: "star",
+      icon: "star" as const,
       label: "Rating",
-      value: "4.8",
-      sub: "Based on 124 reviews",
+      value: isLoading ? "—" : stats?.reviewCount ? String(stats.avgRating) : "New",
+      sub: isLoading ? "" : stats?.reviewCount ? `${stats.reviewCount} reviews` : "No reviews yet",
       color: "#f59e0b",
     },
     {
-      icon: "trending-up",
+      icon: "trending-up" as const,
       label: "This Month",
-      value: "₹28,400",
-      sub: "22 jobs completed",
+      value: isLoading ? "—" : fmtINR(stats?.monthEarnings ?? 0),
+      sub: isLoading ? "" : `${stats?.monthJobs ?? 0} jobs completed`,
       color: "#8b5cf6",
     },
   ];
@@ -117,11 +106,7 @@ export default function VendorDashboard() {
           onPress={() => setIsOnline((v) => !v)}
           style={[
             styles.onlinePill,
-            {
-              backgroundColor: isOnline
-                ? "#dcfce7"
-                : colors.muted,
-            },
+            { backgroundColor: isOnline ? "#dcfce7" : colors.muted },
           ]}
         >
           <View
@@ -155,8 +140,17 @@ export default function VendorDashboard() {
         </View>
       )}
 
+      {isLoading && (
+        <View style={styles.loadingRow}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
+            Loading stats…
+          </Text>
+        </View>
+      )}
+
       <View style={styles.statsGrid}>
-        {stats.map((s, i) => (
+        {statCards.map((s, i) => (
           <View
             key={i}
             style={[
@@ -165,10 +159,7 @@ export default function VendorDashboard() {
             ]}
           >
             <View
-              style={[
-                styles.statIcon,
-                { backgroundColor: s.color + "18" },
-              ]}
+              style={[styles.statIcon, { backgroundColor: s.color + "18" }]}
             >
               <Feather name={s.icon} size={18} color={s.color} />
             </View>
@@ -199,65 +190,70 @@ export default function VendorDashboard() {
             { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
-          {RECENT_JOBS.map((job, idx) => (
-            <View key={job.id}>
-              {idx > 0 && (
-                <View
-                  style={[styles.divider, { backgroundColor: colors.border }]}
-                />
-              )}
-              <View style={styles.jobRow}>
-                <View
-                  style={[
-                    styles.jobIconWrap,
-                    { backgroundColor: colors.primary + "12" },
-                  ]}
-                >
-                  <Feather name="tool" size={16} color={colors.primary} />
-                </View>
-                <View style={styles.jobInfo}>
-                  <Text
-                    style={[styles.jobService, { color: colors.foreground }]}
-                  >
-                    {job.service}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.jobMeta,
-                      { color: colors.mutedForeground },
-                    ]}
-                  >
-                    {job.customer} · {job.date}
-                  </Text>
-                </View>
-                <View style={styles.jobRight}>
-                  <Text
-                    style={[styles.jobAmount, { color: colors.foreground }]}
-                  >
-                    ₹{job.amount}
-                  </Text>
+          {!isLoading && (!stats?.recentJobs || stats.recentJobs.length === 0) ? (
+            <View style={styles.emptyRow}>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                No completed jobs yet
+              </Text>
+            </View>
+          ) : (
+            (stats?.recentJobs ?? []).map((job, idx) => (
+              <View key={job.id}>
+                {idx > 0 && (
+                  <View
+                    style={[styles.divider, { backgroundColor: colors.border }]}
+                  />
+                )}
+                <View style={styles.jobRow}>
                   <View
                     style={[
-                      styles.statusBadge,
-                      {
-                        backgroundColor:
-                          STATUS_COLOR[job.status] + "18",
-                      },
+                      styles.jobIconWrap,
+                      { backgroundColor: colors.primary + "12" },
                     ]}
                   >
+                    <Feather name="tool" size={16} color={colors.primary} />
+                  </View>
+                  <View style={styles.jobInfo}>
+                    <Text
+                      style={[styles.jobService, { color: colors.foreground }]}
+                    >
+                      {job.serviceName}
+                    </Text>
                     <Text
                       style={[
-                        styles.statusText,
-                        { color: STATUS_COLOR[job.status] },
+                        styles.jobMeta,
+                        { color: colors.mutedForeground },
                       ]}
                     >
-                      {job.status}
+                      {fmtDate(job.date)} · {job.time}
                     </Text>
+                  </View>
+                  <View style={styles.jobRight}>
+                    <Text
+                      style={[styles.jobAmount, { color: colors.foreground }]}
+                    >
+                      ₹{job.price.toLocaleString("en-IN")}
+                    </Text>
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        { backgroundColor: STATUS_COLOR.completed + "18" },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusText,
+                          { color: STATUS_COLOR.completed },
+                        ]}
+                      >
+                        completed
+                      </Text>
+                    </View>
                   </View>
                 </View>
               </View>
-            </View>
-          ))}
+            ))
+          )}
         </View>
       </View>
 
@@ -272,15 +268,37 @@ export default function VendorDashboard() {
           ]}
         >
           {[
-            { label: "Acceptance Rate", value: "94%", icon: "check-circle" as const, color: "#22c55e" },
-            { label: "On-time Arrival", value: "98%", icon: "clock" as const, color: colors.primary },
-            { label: "Repeat Customers", value: "67%", icon: "users" as const, color: "#8b5cf6" },
+            {
+              label: "Acceptance Rate",
+              value: isLoading ? "—" : `${stats?.acceptanceRate ?? 100}%`,
+              icon: "check-circle" as const,
+              color: "#22c55e",
+            },
+            {
+              label: "Avg Rating",
+              value: isLoading
+                ? "—"
+                : stats?.reviewCount
+                  ? `${stats.avgRating} ⭐`
+                  : "No reviews",
+              icon: "star" as const,
+              color: "#f59e0b",
+            },
+            {
+              label: "Jobs This Month",
+              value: isLoading ? "—" : String(stats?.monthJobs ?? 0),
+              icon: "briefcase" as const,
+              color: colors.primary,
+            },
           ].map((item, i) => (
             <View key={i} style={styles.perfRow}>
               <View style={styles.perfLeft}>
                 <Feather name={item.icon} size={16} color={item.color} />
                 <Text
-                  style={[styles.perfLabel, { color: colors.mutedForeground }]}
+                  style={[
+                    styles.perfLabel,
+                    { color: colors.mutedForeground },
+                  ]}
                 >
                   {item.label}
                 </Text>
@@ -329,6 +347,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   onlineBannerText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  loadingText: { fontSize: 13, fontFamily: "Inter_400Regular" },
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -362,11 +388,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
-  jobList: {
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
+  jobList: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  emptyRow: { paddingVertical: 24, alignItems: "center" },
+  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular" },
   jobRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -384,11 +408,7 @@ const styles = StyleSheet.create({
   },
   jobInfo: { flex: 1 },
   jobService: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  jobMeta: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    marginTop: 2,
-  },
+  jobMeta: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   jobRight: { alignItems: "flex-end", gap: 4 },
   jobAmount: { fontSize: 14, fontFamily: "Inter_700Bold" },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },

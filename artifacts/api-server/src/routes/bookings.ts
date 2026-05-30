@@ -5,6 +5,7 @@ import { bookingQueue } from "../lib/queue";
 import { RAZORPAY_KEY_ID, createRazorpayOrder } from "../lib/razorpay";
 import { clearPendingLead, emitToUser, getIO, markPendingLead, vendorSockets } from "../lib/socket";
 import { sendPushNotification } from "../lib/push";
+import { emitProviderStats } from "./stats";
 
 const DEFAULT_LAT = 12.9716;
 const DEFAULT_LNG = 77.5946;
@@ -282,6 +283,9 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
   }
 
   emitToUser(booking.userId, "booking:status", { bookingId: id, status: booking.status });
+
+  // Notify the provider's dashboard to refresh stats in real time
+  emitProviderStats(booking.providerId);
 
   if (status === "cancelled") {
     await db.insert(notificationsTable).values({
