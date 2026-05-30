@@ -95,10 +95,9 @@ export default function LoginScreen() {
     setOtp("");
   };
 
-  // While auth state is loading, show a spinner so users don't see the login
-  // form briefly during a session restore. Also show spinner while auth is
-  // true but the navigator hasn't redirected yet after a successful verify.
-  if (isLoading || isAuthenticated) {
+  // While auth state is true but navigator hasn't redirected yet after verify,
+  // show a spinner so users don't briefly see the phone form again.
+  if (!isLoading && isAuthenticated) {
     return (
       <SafeAreaView style={styles.container}>
         <View
