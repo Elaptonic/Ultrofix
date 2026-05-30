@@ -1,15 +1,27 @@
-import { assignNearestProvider, bookingsTable, db, notificationsTable, providersTable, servicesTable } from "@workspace/db";
+import { assignNearestProvider, bookingsTable, db, notificationsTable, providersTable, servicesTable, usersTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { bookingQueue } from "../lib/queue";
 import { RAZORPAY_KEY_ID, createRazorpayOrder } from "../lib/razorpay";
 import { clearPendingLead, emitToUser, getIO, markPendingLead, vendorSockets } from "../lib/socket";
+import { sendPushNotification } from "../lib/push";
 
 const DEFAULT_LAT = 12.9716;
 const DEFAULT_LNG = 77.5946;
 const LEAD_TIMEOUT_MS = 30000;
 
 const router: IRouter = Router();
+
+async function getUserPushToken(userId: string): Promise<string | null> {
+  const [user] = await db.select({ pushToken: usersTable.pushToken }).from(usersTable).where(eq(usersTable.id, userId));
+  return user?.pushToken ?? null;
+}
+
+async function getProviderPushToken(providerId: number): Promise<string | null> {
+  const [provider] = await db.select({ userId: providersTable.userId }).from(providersTable).where(eq(providersTable.id, providerId));
+  if (!provider?.userId) return null;
+  return getUserPushToken(provider.userId);
+}
 
 bookingQueue.process("vendor-assignment", async ({ bookingId, userId, serviceName, providerName }) => {
   await new Promise((r) => setTimeout(r, 4000));
@@ -32,6 +44,13 @@ bookingQueue.process("vendor-assignment", async ({ bookingId, userId, serviceNam
     read: false,
     bookingId,
   });
+
+  const token = await getUserPushToken(userId);
+  sendPushNotification(token, {
+    title: "Provider On The Way! 🚗",
+    body: `${providerName} has accepted your ${serviceName} booking.`,
+    data: { type: "booking_accepted", bookingId },
+  });
 });
 
 bookingQueue.process("start-service", async ({ bookingId, userId, serviceName }) => {
@@ -41,6 +60,13 @@ bookingQueue.process("start-service", async ({ bookingId, userId, serviceName })
     .set({ status: "in_progress" })
     .where(eq(bookingsTable.id, bookingId));
   emitToUser(userId, "booking:status", { bookingId, status: "in_progress" });
+
+  const token = await getUserPushToken(userId);
+  sendPushNotification(token, {
+    title: "Service Started 🔧",
+    body: `Your ${serviceName} is now in progress.`,
+    data: { type: "service_started", bookingId },
+  });
 });
 
 router.get("/bookings", async (req, res): Promise<void> => {
@@ -112,6 +138,22 @@ router.post("/bookings", async (req, res): Promise<void> => {
   });
 
   emitToUser(String(userId), "booking:status", { bookingId: booking.id, status: "pending" });
+
+  // Push notification to customer (booking confirmed)
+  const customerToken = await getUserPushToken(String(userId));
+  sendPushNotification(customerToken, {
+    title: "Booking Confirmed! ✅",
+    body: `${service.name} with ${provider.name} on ${formattedDate} at ${time}.`,
+    data: { type: "booking_confirmed", bookingId: booking.id },
+  });
+
+  // Push notification to provider (new job lead)
+  const providerToken = await getProviderPushToken(Number(providerId));
+  sendPushNotification(providerToken, {
+    title: "New Job Request 🔔",
+    body: `${service.name} job on ${formattedDate} at ${time}. Tap to view details.`,
+    data: { type: "new_lead", bookingId: booking.id },
+  });
 
   // Create Razorpay order (no-op when keys are not set)
   const rzpOrder = await createRazorpayOrder(
@@ -243,6 +285,12 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
       read: false,
       bookingId: booking.id,
     });
+    const token = await getUserPushToken(booking.userId);
+    sendPushNotification(token, {
+      title: "Booking Cancelled",
+      body: `Your ${booking.serviceName} booking has been cancelled.`,
+      data: { type: "booking_cancelled", bookingId: id },
+    });
   } else if (status === "completed" && !booking.rating) {
     await db.insert(notificationsTable).values({
       userId: booking.userId,
@@ -253,6 +301,12 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
       body: `How was your ${booking.serviceName} with ${booking.providerName}? Tap to rate.`,
       read: false,
       bookingId: booking.id,
+    });
+    const token = await getUserPushToken(booking.userId);
+    sendPushNotification(token, {
+      title: "How was the service? ⭐",
+      body: `Rate your ${booking.serviceName} with ${booking.providerName}.`,
+      data: { type: "rating_request", bookingId: id },
     });
   } else if (status === "in_progress") {
     bookingQueue.add("start-service", {

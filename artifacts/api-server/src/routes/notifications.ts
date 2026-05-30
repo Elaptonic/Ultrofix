@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { and, desc, eq } from "drizzle-orm";
-import { db, notificationsTable } from "@workspace/db";
+import { db, notificationsTable, usersTable } from "@workspace/db";
 
 const router = Router();
 
@@ -44,6 +44,26 @@ router.post("/notifications/mark-all-read", async (req, res) => {
       .update(notificationsTable)
       .set({ read: true })
       .where(and(eq(notificationsTable.userId, userId), eq(notificationsTable.read, false)));
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/notifications/push-token", async (req, res) => {
+  try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const userId = req.user!.id;
+    const { pushToken } = req.body;
+    if (!pushToken || typeof pushToken !== "string") {
+      return res.status(400).json({ error: "pushToken required" });
+    }
+    await db
+      .update(usersTable)
+      .set({ pushToken })
+      .where(eq(usersTable.id, userId));
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: "Internal server error" });

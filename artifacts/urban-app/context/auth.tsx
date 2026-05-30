@@ -18,7 +18,7 @@ import {
   getWebAuth,
 } from "@/lib/firebaseWeb";
 
-const AUTH_TOKEN_KEY = "auth_session_token";
+export const AUTH_TOKEN_KEY = "auth_session_token";
 
 type FirebaseAuthFn = () => FirebaseAuthTypes.Module;
 let nativeAuth: FirebaseAuthFn | null = null;
@@ -106,7 +106,7 @@ const AuthContext = createContext<AuthContextValue>({
   markOnboardingComplete: () => {},
 });
 
-function getApiBaseUrl(): string {
+export function getApiBaseUrl(): string {
   if (process.env.EXPO_PUBLIC_DOMAIN) {
     return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
   }

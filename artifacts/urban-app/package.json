@@ -58,6 +58,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "expo-notifications": "^56.0.14",
     "expo-secure-store": "~15.0.8",
     "firebase": "^12.12.1",
     "lucide-react-native": "^1.8.0",

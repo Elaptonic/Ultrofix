@@ -18,6 +18,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import { AuthProvider, useAuth } from "@/context/auth";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 
@@ -90,10 +91,17 @@ function AuthGate() {
   return null;
 }
 
+function PushNotificationRegistrar() {
+  const { user } = useAuth();
+  usePushNotifications(user?.id);
+  return null;
+}
+
 function RootLayoutNav() {
   return (
     <>
       <AuthGate />
+      <PushNotificationRegistrar />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="login" options={{ animation: "fade" }} />
         <Stack.Screen name="role-select" options={{ animation: "fade" }} />
