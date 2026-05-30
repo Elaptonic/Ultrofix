@@ -186,7 +186,7 @@ function translateRestError(code: string): string {
     return "Please enter the verification code.";
   }
   if (upper.includes("BILLING_NOT_ENABLED")) {
-    return "Phone Auth requires the Blaze (pay-as-you-go) plan in this Firebase project.";
+    return "Phone Auth is disabled because your Firebase project is on the free Spark plan. Go to Firebase Console → Project Settings → Usage & Billing → Upgrade to Blaze plan, then wait 2 minutes and try again.";
   }
   return `Firebase: ${code}`;
 }
