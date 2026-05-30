@@ -55,34 +55,63 @@ function AuthGate() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated || user?.role !== "provider" || onboardingChecked) return;
+    const BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+    const check = async () => {
+      try {
+        let token: string | null = null;
+        try {
+          const ss = await import("expo-secure-store");
+          token = await ss.getItemAsync("auth_session_token");
+        } catch {}
+        const res = await fetch(`${BASE}/api/onboarding/provider/status`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: "include",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setNeedsOnboarding(!data.onboardingComplete);
+        }
+      } catch {}
+      setOnboardingChecked(true);
+    };
+    check();
+  }, [isAuthenticated, user?.role, onboardingChecked]);
 
   useEffect(() => {
     if (isLoading) return;
+    if (user?.role === "provider" && !onboardingChecked) return;
 
     const inAuthGroup = segments[0] === "login" || segments[0] === "role-select";
+    const inOnboarding = segments[0] === "vendor" && segments[1] === "onboarding";
 
     if (!isAuthenticated) {
-      if (!inAuthGroup) {
-        router.replace("/login");
-      }
+      if (!inAuthGroup) router.replace("/login");
       return;
     }
 
     if (!user?.role) {
-      if (segments[0] !== "role-select") {
-        router.replace("/role-select");
-      }
+      if (segments[0] !== "role-select") router.replace("/role-select");
       return;
     }
 
-    if (inAuthGroup) {
+    if (user.role === "provider" && needsOnboarding) {
+      if (!inOnboarding) router.replace("/vendor/onboarding");
+      return;
+    }
+
+    if (inAuthGroup || inOnboarding) {
       if (user.role === "provider") {
         router.replace("/vendor/(tabs)/dashboard");
       } else {
         router.replace("/(tabs)");
       }
     }
-  }, [isLoading, isAuthenticated, user, segments, router]);
+  }, [isLoading, isAuthenticated, user, segments, router, onboardingChecked, needsOnboarding]);
 
   return null;
 }

@@ -3,6 +3,7 @@ import authRouter from "./auth";
 import bookingsRouter from "./bookings";
 import healthRouter from "./health";
 import notificationsRouter from "./notifications";
+import onboardingRouter from "./onboarding";
 import paymentsRouter from "./payments";
 import placesRouter from "./places";
 import profileRouter from "./profile";
@@ -20,5 +21,6 @@ router.use(profileRouter);
 router.use(notificationsRouter);
 router.use(paymentsRouter);
 router.use(placesRouter);
+router.use(onboardingRouter);
 
 export default router;

@@ -9,6 +9,7 @@ export default function VendorLayout() {
     >
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="radar" />
+      <Stack.Screen name="onboarding" options={{ animation: "slide_from_right" }} />
     </Stack>
   );
 }
