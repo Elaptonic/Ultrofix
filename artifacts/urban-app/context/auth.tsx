@@ -265,6 +265,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const sendOtp = useCallback(async (phoneNumberE164: string) => {
     setIsOtpSending(true);
+    // Safety net: never leave the spinner stuck on if the promise hangs.
+    const safety = setTimeout(() => setIsOtpSending(false), 15_000);
     try {
       if (USE_JS_SDK) {
         const confirmation = await webSendOtp(phoneNumberE164);
@@ -284,6 +286,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       nativeConfirmationRef.current = confirmation;
       setPendingPhoneNumber(phoneNumberE164);
     } finally {
+      clearTimeout(safety);
       setIsOtpSending(false);
     }
   }, []);
@@ -291,6 +294,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resendOtp = useCallback(async () => {
     if (!pendingPhoneNumber) return;
     setIsOtpSending(true);
+    const safety = setTimeout(() => setIsOtpSending(false), 15_000);
     try {
       if (USE_JS_SDK) {
         // Reset reCAPTCHA between attempts so a fresh challenge runs.
@@ -306,6 +310,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       nativeConfirmationRef.current = confirmation;
     } finally {
+      clearTimeout(safety);
       setIsOtpSending(false);
     }
   }, [pendingPhoneNumber]);

@@ -124,17 +124,29 @@ async function restSendVerificationCode(
     // which Expo Go can't produce — that's why Expo Go is test-numbers only.
     recaptchaToken: "expo-go-test-token",
   };
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data: RestSendVerificationCodeResponse = await res.json();
-  if (!res.ok || !data.sessionInfo) {
-    const code = data.error?.message ?? `HTTP ${res.status}`;
-    throw new Error(translateRestError(code));
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const data: RestSendVerificationCodeResponse = await res.json();
+    if (!res.ok || !data.sessionInfo) {
+      const code = data.error?.message ?? `HTTP ${res.status}`;
+      throw new Error(translateRestError(code));
+    }
+    return data.sessionInfo;
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw new Error("Network request timed out. Check your connection and try again.");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
   }
-  return data.sessionInfo;
 }
 
 async function restSignInWithVerificationCode(
@@ -144,17 +156,29 @@ async function restSignInWithVerificationCode(
   const url = `${IDENTITY_TOOLKIT}/accounts:signInWithPhoneNumber?key=${encodeURIComponent(
     firebaseConfig.apiKey,
   )}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionInfo, code }),
-  });
-  const data: RestSignInResponse = await res.json();
-  if (!res.ok || !data.idToken) {
-    const errCode = data.error?.message ?? `HTTP ${res.status}`;
-    throw new Error(translateRestError(errCode));
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionInfo, code }),
+      signal: controller.signal,
+    });
+    const data: RestSignInResponse = await res.json();
+    if (!res.ok || !data.idToken) {
+      const errCode = data.error?.message ?? `HTTP ${res.status}`;
+      throw new Error(translateRestError(errCode));
+    }
+    return { idToken: data.idToken };
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw new Error("Network request timed out. Check your connection and try again.");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
   }
-  return { idToken: data.idToken };
 }
 
 function translateRestError(code: string): string {
