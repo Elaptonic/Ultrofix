@@ -14,8 +14,13 @@ async function buildAll() {
   const distDir = path.resolve(artifactDir, "dist");
   await rm(distDir, { recursive: true, force: true });
 
+  // Build both the long-running server entry (for Replit) and the
+  // serverless handler entry (for Vercel) in a single esbuild pass.
   await esbuild({
-    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
+    entryPoints: [
+      path.resolve(artifactDir, "src/index.ts"),
+      path.resolve(artifactDir, "src/handler.ts"),
+    ],
     platform: "node",
     bundle: true,
     format: "esm",
