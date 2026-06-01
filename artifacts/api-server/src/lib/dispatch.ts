@@ -40,7 +40,7 @@ export async function dispatchNextVendor(bookingId: number): Promise<number | nu
   for (const attempt of currentlyDispatched) {
     await db
       .update(leadDispatchAttemptsTable)
-      .set({ status: "timed_out", updatedAt: new Date() })
+      .set({ status: "timed_out", skipReason: "timed_out", updatedAt: new Date() })
       .where(eq(leadDispatchAttemptsTable.id, attempt.id));
   }
 
@@ -87,7 +87,7 @@ export async function dispatchNextVendor(bookingId: number): Promise<number | nu
   if (!isAvailable) {
     await db
       .update(leadDispatchAttemptsTable)
-      .set({ status: "skipped", updatedAt: new Date() })
+      .set({ status: "skipped", skipReason: "slot_conflict", updatedAt: new Date() })
       .where(eq(leadDispatchAttemptsTable.id, next.id));
 
     logger.info(
@@ -139,7 +139,7 @@ export async function dispatchNextVendor(bookingId: number): Promise<number | nu
 export async function markVendorRejected(bookingId: number, providerId: number): Promise<boolean> {
   const result = await db
     .update(leadDispatchAttemptsTable)
-    .set({ status: "rejected", updatedAt: new Date() })
+    .set({ status: "rejected", skipReason: "rejected_by_vendor", updatedAt: new Date() })
     .where(
       and(
         eq(leadDispatchAttemptsTable.bookingId, bookingId),
@@ -170,7 +170,7 @@ export async function markVendorAccepted(bookingId: number, providerId: number):
 
   await db
     .update(leadDispatchAttemptsTable)
-    .set({ status: "skipped", updatedAt: new Date() })
+    .set({ status: "skipped", skipReason: "booking_accepted_by_other", updatedAt: new Date() })
     .where(
       and(
         eq(leadDispatchAttemptsTable.bookingId, bookingId),

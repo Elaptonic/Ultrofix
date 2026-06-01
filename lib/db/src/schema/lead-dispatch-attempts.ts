@@ -12,6 +12,7 @@ export const leadDispatchAttemptsTable = pgTable("lead_dispatch_attempts", {
   })
     .notNull()
     .default("pending"),
+  skipReason: text("skip_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

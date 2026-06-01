@@ -1,5 +1,5 @@
-import { bookingsTable, db, notificationsTable, providersTable, servicesTable, usersTable } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { bookingsTable, db, leadDispatchAttemptsTable, notificationsTable, providersTable, servicesTable, usersTable } from "@workspace/db";
+import { and, asc, eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { bookingQueue } from "../lib/queue";
 import { RAZORPAY_KEY_ID, createRazorpayOrder } from "../lib/razorpay";
@@ -273,6 +273,49 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
   }
 
   res.json(booking);
+});
+
+router.get("/bookings/:id/dispatch-log", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid booking ID" });
+    return;
+  }
+
+  const [booking] = await db
+    .select({ id: bookingsTable.id, serviceName: bookingsTable.serviceName, status: bookingsTable.status })
+    .from(bookingsTable)
+    .where(eq(bookingsTable.id, id));
+
+  if (!booking) {
+    res.status(404).json({ error: "Booking not found" });
+    return;
+  }
+
+  const attempts = await db
+    .select({
+      rank: leadDispatchAttemptsTable.rank,
+      status: leadDispatchAttemptsTable.status,
+      skipReason: leadDispatchAttemptsTable.skipReason,
+      providerId: leadDispatchAttemptsTable.providerId,
+      providerName: providersTable.name,
+      providerRating: providersTable.rating,
+      providerJobsCompleted: providersTable.jobsCompleted,
+      dispatchedAt: leadDispatchAttemptsTable.updatedAt,
+    })
+    .from(leadDispatchAttemptsTable)
+    .leftJoin(providersTable, eq(leadDispatchAttemptsTable.providerId, providersTable.id))
+    .where(eq(leadDispatchAttemptsTable.bookingId, id))
+    .orderBy(asc(leadDispatchAttemptsTable.rank));
+
+  res.json({
+    bookingId: id,
+    serviceName: booking.serviceName,
+    bookingStatus: booking.status,
+    totalAttempts: attempts.length,
+    attempts,
+  });
 });
 
 export default router;
