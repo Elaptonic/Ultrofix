@@ -13,7 +13,7 @@ export function ProviderCard({ provider }: ProviderCardProps) {
   const colors = useColors();
 
   const avatarColors = [
-    "#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899",
+    "#2DD4A0", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899",
   ];
   const avatarColor = avatarColors[provider.id % avatarColors.length];
 

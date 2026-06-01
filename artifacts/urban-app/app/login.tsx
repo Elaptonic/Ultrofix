@@ -107,7 +107,7 @@ export default function LoginScreen() {
             justifyContent: "center",
           }}
         >
-          <ActivityIndicator color="#f97316" size="large" />
+          <ActivityIndicator color="#2DD4A0" size="large" />
         </View>
       </SafeAreaView>
     );
@@ -231,7 +231,7 @@ export default function LoginScreen() {
                 style={styles.resendRow}
               >
                 {isOtpSending ? (
-                  <ActivityIndicator color="#f97316" />
+                  <ActivityIndicator color="#2DD4A0" />
                 ) : (
                   <Text style={styles.linkText}>Resend OTP</Text>
                 )}
@@ -246,7 +246,7 @@ export default function LoginScreen() {
               { icon: "star" as const, text: "Top-rated providers" },
             ].map((item) => (
               <View key={item.text} style={styles.featureRow}>
-                <Feather name={item.icon} size={18} color="#f97316" />
+                <Feather name={item.icon} size={18} color="#2DD4A0" />
                 <Text style={styles.featureText}>{item.text}</Text>
               </View>
             ))}
@@ -270,10 +270,10 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 20,
-    backgroundColor: "#f97316",
+    backgroundColor: "#2DD4A0",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#f97316",
+    shadowColor: "#2DD4A0",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
     letterSpacing: 8,
   },
   primaryButton: {
-    backgroundColor: "#f97316",
+    backgroundColor: "#2DD4A0",
     borderRadius: 14,
     paddingVertical: 16,
     paddingHorizontal: 24,
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    shadowColor: "#f97316",
+    shadowColor: "#2DD4A0",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   linkText: {
-    color: "#f97316",
+    color: "#2DD4A0",
     fontFamily: "Inter_600SemiBold",
     fontSize: 14,
   },

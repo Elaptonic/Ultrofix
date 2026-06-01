@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#f97316"
+      "backgroundColor": "#2DD4A0"
     },
     "ios": {
       "supportsTablet": false,
@@ -19,7 +19,7 @@
       "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
-      "backgroundColor": "#f97316",
+      "backgroundColor": "#2DD4A0",
       "package": "com.ultrofix.app",
       "googleServicesFile": "./google-services.json"
     },

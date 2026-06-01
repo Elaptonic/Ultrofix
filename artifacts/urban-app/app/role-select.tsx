@@ -45,7 +45,7 @@ export default function RoleSelectScreen() {
               <Feather
                 name="search"
                 size={28}
-                color={selected === "consumer" ? "#fff" : "#f97316"}
+                color={selected === "consumer" ? "#fff" : "#2DD4A0"}
               />
             </View>
             <View style={styles.cardText}>
@@ -69,7 +69,7 @@ export default function RoleSelectScreen() {
               <Feather
                 name="briefcase"
                 size={28}
-                color={selected === "provider" ? "#fff" : "#f97316"}
+                color={selected === "provider" ? "#fff" : "#2DD4A0"}
               />
             </View>
             <View style={styles.cardText}>
@@ -163,19 +163,19 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   cardSelected: {
-    borderColor: "#f97316",
-    backgroundColor: "#fff7ed",
+    borderColor: "#2DD4A0",
+    backgroundColor: "#ecfdf5",
   },
   cardIcon: {
     width: 56,
     height: 56,
     borderRadius: 16,
-    backgroundColor: "#fff7ed",
+    backgroundColor: "#ecfdf5",
     alignItems: "center",
     justifyContent: "center",
   },
   cardIconSelected: {
-    backgroundColor: "#f97316",
+    backgroundColor: "#2DD4A0",
   },
   cardText: {
     flex: 1,
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   cardTitleSelected: {
-    color: "#f97316",
+    color: "#2DD4A0",
   },
   cardDescription: {
     fontSize: 13,
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     borderWidth: 2,
-    borderColor: "#f97316",
+    borderColor: "#2DD4A0",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -208,18 +208,18 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: "#f97316",
+    backgroundColor: "#2DD4A0",
   },
   footer: {
     gap: 12,
   },
   continueButton: {
-    backgroundColor: "#f97316",
+    backgroundColor: "#2DD4A0",
     borderRadius: 16,
     paddingVertical: 18,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#f97316",
+    shadowColor: "#2DD4A0",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
