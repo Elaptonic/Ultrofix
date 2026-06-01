@@ -1,15 +1,12 @@
-import { assignNearestProvider, bookingsTable, db, notificationsTable, providersTable, servicesTable, usersTable } from "@workspace/db";
+import { bookingsTable, db, notificationsTable, providersTable, servicesTable, usersTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { bookingQueue } from "../lib/queue";
 import { RAZORPAY_KEY_ID, createRazorpayOrder } from "../lib/razorpay";
-import { clearPendingLead, emitToUser, emitToVendor, getIO, markPendingLead, vendorSockets } from "../lib/socket";
+import { emitToUser } from "../lib/socket";
 import { sendPushNotification } from "../lib/push";
 import { emitProviderStats } from "./stats";
-
-const DEFAULT_LAT = 12.9716;
-const DEFAULT_LNG = 77.5946;
-const LEAD_TIMEOUT_MS = 30000;
+import { dispatchNextVendor, seedDispatchQueue } from "../lib/dispatch";
 
 const router: IRouter = Router();
 
@@ -23,36 +20,6 @@ async function getProviderPushToken(providerId: number): Promise<string | null> 
   if (!provider?.userId) return null;
   return getUserPushToken(provider.userId);
 }
-
-bookingQueue.process("vendor-assignment", async ({ bookingId, userId, serviceName, providerName }) => {
-  await new Promise((r) => setTimeout(r, 4000));
-  const [updated] = await db
-    .update(bookingsTable)
-    .set({ status: "accepted" })
-    .where(eq(bookingsTable.id, bookingId))
-    .returning();
-  if (!updated) return;
-
-  emitToUser(userId, "booking:status", { bookingId, status: "accepted" });
-
-  await db.insert(notificationsTable).values({
-    userId,
-    type: "booking_accepted",
-    icon: "user-check",
-    iconColor: "#3b82f6",
-    title: "Provider On The Way!",
-    body: `${providerName} has accepted your ${serviceName} booking and will arrive as scheduled.`,
-    read: false,
-    bookingId,
-  });
-
-  const token = await getUserPushToken(userId);
-  sendPushNotification(token, {
-    title: "Provider On The Way! 🚗",
-    body: `${providerName} has accepted your ${serviceName} booking.`,
-    data: { type: "booking_accepted", bookingId },
-  });
-});
 
 bookingQueue.process("start-service", async ({ bookingId, userId, serviceName }) => {
   await new Promise((r) => setTimeout(r, 3000));
@@ -149,7 +116,6 @@ router.post("/bookings", async (req, res): Promise<void> => {
 
   emitToUser(String(userId), "booking:status", { bookingId: booking.id, status: "pending" });
 
-  // Push notification to customer (booking confirmed)
   const customerToken = await getUserPushToken(String(userId));
   sendPushNotification(customerToken, {
     title: "Booking Confirmed! ✅",
@@ -157,15 +123,6 @@ router.post("/bookings", async (req, res): Promise<void> => {
     data: { type: "booking_confirmed", bookingId: booking.id },
   });
 
-  // Push notification to provider (new job lead)
-  const providerToken = await getProviderPushToken(Number(providerId));
-  sendPushNotification(providerToken, {
-    title: "New Job Request 🔔",
-    body: `${service.name} job on ${formattedDate} at ${time}. Tap to view details.`,
-    data: { type: "new_lead", bookingId: booking.id },
-  });
-
-  // Create Razorpay order (no-op when keys are not set)
   const rzpOrder = await createRazorpayOrder(
     booking.price + booking.platformFee,
     `booking_${booking.id}`,
@@ -177,45 +134,40 @@ router.post("/bookings", async (req, res): Promise<void> => {
       .where(eq(bookingsTable.id, booking.id));
   }
 
-  // Attempt real-time dispatch to nearest online vendor
-  const matchResult = await assignNearestProvider(service.category, DEFAULT_LAT, DEFAULT_LNG);
+  const queueCount = await seedDispatchQueue(
+    booking.id,
+    service.category,
+    String(date),
+    String(time),
+  );
 
-  if (matchResult.success) {
-    const leadPayload = {
-      bookingId: booking.id,
-      serviceName: service.name,
-      category: service.category,
-      providerName: provider.name,
-      date: booking.date,
-      time: booking.time,
-      address: booking.address,
-      price: booking.price,
-      userId: String(userId),
-      providerId: matchResult.provider.id,
-      distanceKm: matchResult.distanceKm,
-    };
-    // Emit to the vendor's room so ALL their sockets receive the lead,
-    // regardless of which socket registered last in vendorSockets map.
-    emitToVendor(matchResult.provider.id, "NEW_LEAD", leadPayload);
-    markPendingLead(booking.id, LEAD_TIMEOUT_MS, () => {
-      bookingQueue.add(
-        "vendor-assignment",
-        {
-          bookingId: booking.id,
-          userId: String(userId),
-          serviceName: service.name,
-          providerName: provider.name,
-        },
-        { delay: 0 },
-      );
-    });
+  if (queueCount > 0) {
+    const dispatchedProviderId = await dispatchNextVendor(booking.id);
+
+    if (dispatchedProviderId != null) {
+      const providerToken = await getProviderPushToken(dispatchedProviderId);
+      sendPushNotification(providerToken, {
+        title: "New Job Request 🔔",
+        body: `${service.name} job on ${formattedDate} at ${time}. Tap to view details.`,
+        data: { type: "new_lead", bookingId: booking.id },
+      });
+    }
   } else {
-    bookingQueue.add("vendor-assignment", {
+    emitToUser(String(userId), "booking:no_provider", {
       bookingId: booking.id,
+      message: "No provider is available right now. We'll notify you when one becomes available.",
+    });
+
+    await db.insert(notificationsTable).values({
       userId: String(userId),
-      serviceName: service.name,
-      providerName: provider.name,
-    }, { delay: 1000 });
+      type: "booking_no_provider",
+      icon: "alert-circle",
+      iconColor: "#f59e0b",
+      title: "No Provider Available",
+      body: `We couldn't find an available provider for your ${service.name} right now. Please try again later.`,
+      read: false,
+      bookingId: booking.id,
+    });
   }
 
   res.status(201).json({
@@ -275,7 +227,6 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
 
   emitToUser(booking.userId, "booking:status", { bookingId: id, status: booking.status });
 
-  // Notify the provider's dashboard to refresh stats in real time
   emitProviderStats(booking.providerId);
 
   if (status === "cancelled") {

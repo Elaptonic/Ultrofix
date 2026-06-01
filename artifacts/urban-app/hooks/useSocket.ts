@@ -122,20 +122,22 @@ export function useVendorSocket(
   const acceptLead = useCallback((lead: NewLead) => {
     socketRef.current?.emit("vendor:accept", {
       bookingId: lead.bookingId,
+      providerId,
       userId: lead.userId,
       serviceName: lead.serviceName,
       providerName: lead.providerName,
     });
-  }, []);
+  }, [providerId]);
 
   const denyLead = useCallback((lead: NewLead) => {
     socketRef.current?.emit("vendor:deny", {
       bookingId: lead.bookingId,
+      providerId,
       userId: lead.userId,
       serviceName: lead.serviceName,
       providerName: lead.providerName,
     });
-  }, []);
+  }, [providerId]);
 
   const emitLocation = useCallback(
     (bookingId: number, lat: number, lng: number, userId: string) => {

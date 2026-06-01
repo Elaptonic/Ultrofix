@@ -1,36 +1,24 @@
-import { bookingsTable, db, notificationsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { bookingsTable, db, notificationsTable, providersTable } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
 import { Server as HttpServer } from "http";
 import { Server as SocketIOServer } from "socket.io";
 import { logger } from "./logger";
-import { bookingQueue } from "./queue";
+import { setIO, getIO, emitToUser, emitToVendor } from "./io-instance";
+import { clearPendingLead, markPendingLead } from "./timers";
+import { dispatchNextVendor, markVendorAccepted, markVendorRejected } from "./dispatch";
 
-let io: SocketIOServer | null = null;
+export { emitToUser, emitToVendor, getIO, clearPendingLead, markPendingLead };
 
 export const vendorSockets = new Map<number, string>();
-const pendingLeadTimers = new Map<number, ReturnType<typeof setTimeout>>();
-
-export function clearPendingLead(bookingId: number) {
-  const timer = pendingLeadTimers.get(bookingId);
-  if (timer) clearTimeout(timer);
-  pendingLeadTimers.delete(bookingId);
-}
-
-export function markPendingLead(bookingId: number, timeoutMs: number, onExpire: () => void) {
-  clearPendingLead(bookingId);
-  const timer = setTimeout(() => {
-    pendingLeadTimers.delete(bookingId);
-    onExpire();
-  }, timeoutMs);
-  pendingLeadTimers.set(bookingId, timer);
-}
 
 export function initSocket(server: HttpServer) {
-  io = new SocketIOServer(server, {
+  const io = new SocketIOServer(server, {
     path: "/api/socket.io",
     cors: { origin: "*" },
     transports: ["polling", "websocket"],
   });
+
+  setIO(io);
 
   io.on("connection", (socket) => {
     logger.info({ socketId: socket.id }, "Socket connected");
@@ -51,19 +39,61 @@ export function initSocket(server: HttpServer) {
       "vendor:accept",
       async (payload: {
         bookingId: number;
+        providerId?: number;
         userId: string;
         serviceName: string;
         providerName: string;
       }) => {
+        const resolvedProviderId =
+          payload.providerId ??
+          [...vendorSockets.entries()].find(([, sid]) => sid === socket.id)?.[0];
+
+        if (!resolvedProviderId) {
+          logger.warn({ bookingId: payload.bookingId }, "vendor:accept — could not resolve providerId");
+          return;
+        }
+
         const { bookingId, userId, serviceName, providerName } = payload;
+        const providerId = resolvedProviderId;
         try {
+          const accepted = await markVendorAccepted(bookingId, providerId);
+          if (!accepted) {
+            logger.warn(
+              { bookingId, providerId },
+              "vendor:accept rejected — not the currently dispatched attempt",
+            );
+            socket.emit("vendor:accept:rejected", {
+              bookingId,
+              reason: "not_dispatched",
+            });
+            return;
+          }
+
+          clearPendingLead(bookingId);
+
+          const [providerRow] = await db
+            .select({
+              name: providersTable.name,
+              initials: providersTable.initials,
+            })
+            .from(providersTable)
+            .where(eq(providersTable.id, providerId));
+
           const [updated] = await db
             .update(bookingsTable)
-            .set({ status: "accepted" })
-            .where(eq(bookingsTable.id, bookingId))
+            .set({
+              status: "accepted",
+              providerId,
+              providerName: providerRow?.name ?? providerName,
+              providerInitials: providerRow?.initials ?? "",
+            })
+            .where(and(eq(bookingsTable.id, bookingId), eq(bookingsTable.userId, userId)))
             .returning();
-          if (!updated) return;
-          clearPendingLead(bookingId);
+
+          if (!updated) {
+            logger.warn({ bookingId }, "vendor:accept: booking update failed");
+            return;
+          }
 
           emitToUser(userId, "booking:status", { bookingId, status: "accepted" });
 
@@ -73,12 +103,12 @@ export function initSocket(server: HttpServer) {
             icon: "user-check",
             iconColor: "#3b82f6",
             title: "Provider On The Way!",
-            body: `${providerName} has accepted your ${serviceName} booking and will arrive as scheduled.`,
+            body: `${providerRow?.name ?? providerName} has accepted your ${serviceName} booking and will arrive as scheduled.`,
             read: false,
             bookingId,
           });
 
-          logger.info({ bookingId, userId }, "Vendor accepted booking");
+          logger.info({ bookingId, providerId, userId }, "Vendor accepted booking");
         } catch (err) {
           logger.error({ err, bookingId }, "vendor:accept handler failed");
         }
@@ -87,21 +117,44 @@ export function initSocket(server: HttpServer) {
 
     socket.on(
       "vendor:deny",
-      (payload: {
+      async (payload: {
         bookingId: number;
+        providerId?: number;
         userId: string;
         serviceName: string;
         providerName: string;
       }) => {
-        const { bookingId, userId, serviceName, providerName } = payload;
-        clearPendingLead(bookingId);
-        bookingQueue.add("vendor-assignment", {
-          bookingId,
-          userId,
-          serviceName,
-          providerName,
-        });
-        logger.info({ bookingId }, "Vendor denied booking — queued fallback");
+        const resolvedProviderId =
+          payload.providerId ??
+          [...vendorSockets.entries()].find(([, sid]) => sid === socket.id)?.[0];
+
+        if (!resolvedProviderId) {
+          logger.warn({ bookingId: payload.bookingId }, "vendor:deny — could not resolve providerId");
+          return;
+        }
+
+        const { bookingId } = payload;
+        const providerId = resolvedProviderId;
+        try {
+          const rejected = await markVendorRejected(bookingId, providerId);
+          if (!rejected) {
+            logger.warn(
+              { bookingId, providerId },
+              "vendor:deny rejected — not the currently dispatched attempt",
+            );
+            socket.emit("vendor:deny:rejected", {
+              bookingId,
+              reason: "not_dispatched",
+            });
+            return;
+          }
+
+          clearPendingLead(bookingId);
+          await dispatchNextVendor(bookingId);
+          logger.info({ bookingId, providerId }, "Vendor denied booking — cascading to next");
+        } catch (err) {
+          logger.error({ err, bookingId }, "vendor:deny handler failed");
+        }
       },
     );
 
@@ -135,18 +188,4 @@ export function initSocket(server: HttpServer) {
   });
 
   return io;
-}
-
-export function getIO() {
-  return io;
-}
-
-export function emitToUser(userId: string, event: string, payload: unknown) {
-  if (!io) return;
-  io.to(`user:${userId}`).emit(event, payload);
-}
-
-export function emitToVendor(providerId: number, event: string, payload: unknown) {
-  if (!io) return;
-  io.to(`vendor:${providerId}`).emit(event, payload);
 }
