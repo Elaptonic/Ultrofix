@@ -275,8 +275,8 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
   res.json(booking);
 });
 
-// TODO: Restrict to admin role once RBAC is introduced (currently "consumer" | "provider" only).
-// For now, require any authenticated session to prevent unauthenticated data exposure.
+// Dispatch log: accessible only to the booking's owner or the assigned provider.
+// TODO: also allow an admin role once RBAC is introduced (currently "consumer" | "provider" only).
 router.get("/bookings/:id/dispatch-log", async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
@@ -291,12 +291,35 @@ router.get("/bookings/:id/dispatch-log", async (req, res): Promise<void> => {
   }
 
   const [booking] = await db
-    .select({ id: bookingsTable.id, serviceName: bookingsTable.serviceName, status: bookingsTable.status })
+    .select({
+      id: bookingsTable.id,
+      userId: bookingsTable.userId,
+      providerId: bookingsTable.providerId,
+      serviceName: bookingsTable.serviceName,
+      status: bookingsTable.status,
+    })
     .from(bookingsTable)
     .where(eq(bookingsTable.id, id));
 
   if (!booking) {
     res.status(404).json({ error: "Booking not found" });
+    return;
+  }
+
+  // Check ownership: must be the customer who made the booking OR the provider assigned to it.
+  const callerId = req.user!.id;
+  const isOwner = booking.userId === callerId;
+  const isAssignedProvider = await (async () => {
+    if (!booking.providerId) return false;
+    const [prov] = await db
+      .select({ userId: providersTable.userId })
+      .from(providersTable)
+      .where(eq(providersTable.id, booking.providerId));
+    return prov?.userId === callerId;
+  })();
+
+  if (!isOwner && !isAssignedProvider) {
+    res.status(403).json({ error: "Forbidden" });
     return;
   }
 
