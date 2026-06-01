@@ -1,9 +1,10 @@
 import { Icon as Feather } from "@/components/Icon";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Platform,
   Pressable,
   ScrollView,
@@ -14,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   useGetService,
+  useGetBooking,
   useListProviders,
   useCreateBooking,
   getListBookingsQueryKey,
@@ -23,6 +25,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 import { useUserId } from "@/constants/user";
+import { useConsumerSocket, type BookingStatusEvent, type NoProviderEvent } from "@/hooks/useSocket";
 
 const TIME_SLOTS = [
   "08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM",
@@ -78,12 +81,100 @@ export default function BookingScreen() {
 
   const [selectedDate, setSelectedDate] = useState<string>(DATES[0].value);
   const [selectedTime, setSelectedTime] = useState<string>(TIME_SLOTS[2]);
-  const [step, setStep] = useState<"scheduling" | "payment" | "confirmed">("scheduling");
+  const [step, setStep] = useState<"scheduling" | "payment" | "finding" | "no_provider" | "confirmed">("scheduling");
   const [paymentInfo, setPaymentInfo] = useState<{
     razorpayOrderId: string | null;
     razorpayAmount: number | null;
     razorpayKeyId: string | null;
   } | null>(null);
+  const [createdBookingId, setCreatedBookingId] = useState<number | null>(null);
+  const [searchAttempts, setSearchAttempts] = useState(0);
+
+  type BufferedEvent =
+    | { kind: "status"; event: BookingStatusEvent }
+    | { kind: "no_provider"; event: NoProviderEvent };
+  const eventBufferRef = useRef<BufferedEvent[]>([]);
+
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
+
+  useEffect(() => {
+    if (step === "finding") {
+      pulseLoop.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.18, duration: 900, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+        ])
+      );
+      pulseLoop.current.start();
+    } else {
+      pulseLoop.current?.stop();
+      pulseAnim.setValue(1);
+    }
+  }, [step, pulseAnim]);
+
+  const applyStatusEvent = useCallback(
+    (event: BookingStatusEvent) => {
+      if (event.status === "accepted") {
+        queryClient.invalidateQueries({ queryKey: getListBookingsQueryKey({ userId }) });
+        setStep("confirmed");
+      } else if (event.status === "searching") {
+        setSearchAttempts((prev) => prev + 1);
+      }
+    },
+    [queryClient, userId],
+  );
+
+  useEffect(() => {
+    if (!createdBookingId) return;
+    const matching = eventBufferRef.current.filter(
+      (e) => e.event.bookingId === createdBookingId,
+    );
+    eventBufferRef.current = [];
+    for (const buffered of matching) {
+      if (buffered.kind === "status") {
+        applyStatusEvent(buffered.event);
+      } else {
+        setStep("no_provider");
+      }
+    }
+  }, [createdBookingId, applyStatusEvent]);
+
+  useConsumerSocket(
+    userId,
+    (event) => {
+      if (!createdBookingId) {
+        eventBufferRef.current.push({ kind: "status", event });
+        return;
+      }
+      if (event.bookingId !== createdBookingId) return;
+      applyStatusEvent(event);
+    },
+    undefined,
+    (event) => {
+      if (!createdBookingId) {
+        eventBufferRef.current.push({ kind: "no_provider", event });
+        return;
+      }
+      if (event.bookingId !== createdBookingId) return;
+      setStep("no_provider");
+    },
+  );
+
+  const { data: polledBooking } = useGetBooking(createdBookingId ?? 0, {
+    query: {
+      enabled: step === "finding" && !!createdBookingId,
+      refetchInterval: 5000,
+    },
+  });
+
+  useEffect(() => {
+    if (!polledBooking || step !== "finding") return;
+    if (polledBooking.status === "accepted") {
+      queryClient.invalidateQueries({ queryKey: getListBookingsQueryKey({ userId }) });
+      setStep("confirmed");
+    }
+  }, [polledBooking, step, queryClient, userId]);
 
   if (serviceLoading) {
     return (
@@ -130,6 +221,7 @@ export default function BookingScreen() {
             razorpayAmount: d.razorpayAmount ?? null,
             razorpayKeyId: d.razorpayKeyId ?? null,
           });
+          setCreatedBookingId(data.id);
           setStep("payment");
         },
       }
@@ -188,7 +280,8 @@ export default function BookingScreen() {
           <Pressable
             onPress={() => {
               queryClient.invalidateQueries({ queryKey: getListBookingsQueryKey({ userId }) });
-              setStep("confirmed");
+              setSearchAttempts(0);
+              setStep("finding");
             }}
             style={({ pressed }) => [
               styles.successBtn,
@@ -205,6 +298,103 @@ export default function BookingScreen() {
             style={({ pressed }) => [styles.homeBtn, pressed && { opacity: 0.7 }]}
           >
             <Text style={[styles.homeBtnText, { color: colors.mutedForeground }]}>Cancel</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  if (step === "finding") {
+    const isRetrying = searchAttempts > 1;
+    const headline = isRetrying
+      ? "Retrying — finding next available provider"
+      : "Finding your provider...";
+    const subtext = isRetrying
+      ? "One provider was unavailable. We're checking the next best match."
+      : "We're contacting nearby providers. This usually takes under a minute.";
+
+    return (
+      <View style={[styles.successContainer, { backgroundColor: colors.background }]}>
+        <View style={[styles.successCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Animated.View
+            style={[
+              styles.pulseRing,
+              { backgroundColor: colors.primary + "20", transform: [{ scale: pulseAnim }] },
+            ]}
+          >
+            <View style={[styles.successIcon, { backgroundColor: colors.primary + "15" }]}>
+              <Feather name="search" size={40} color={colors.primary} />
+            </View>
+          </Animated.View>
+
+          <Text style={[styles.successTitle, { color: colors.foreground, marginTop: 8 }]}>
+            {headline}
+          </Text>
+          <Text style={[styles.successSubtitle, { color: colors.mutedForeground }]}>
+            {subtext}
+          </Text>
+
+          <View style={[styles.statusRow, { backgroundColor: colors.muted, borderRadius: 12, padding: 14 }]}>
+            <ActivityIndicator color={colors.primary} size="small" />
+            <Text style={[styles.statusText, { color: colors.mutedForeground }]}>
+              {isRetrying ? `Attempt ${searchAttempts} in progress…` : "Contacting providers nearby…"}
+            </Text>
+          </View>
+
+          <Pressable
+            onPress={() => {
+              router.dismissAll();
+              router.push("/(tabs)/bookings");
+            }}
+            style={({ pressed }) => [styles.homeBtn, pressed && { opacity: 0.7 }]}
+          >
+            <Text style={[styles.homeBtnText, { color: colors.mutedForeground }]}>
+              View My Bookings
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  if (step === "no_provider") {
+    return (
+      <View style={[styles.successContainer, { backgroundColor: colors.background }]}>
+        <View style={[styles.successCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.successIcon, { backgroundColor: "#fef3c7" }]}>
+            <Feather name="alert-circle" size={48} color="#f59e0b" />
+          </View>
+          <Text style={[styles.successTitle, { color: colors.foreground }]}>
+            No Provider Available
+          </Text>
+          <Text style={[styles.successSubtitle, { color: colors.mutedForeground }]}>
+            We couldn't find an available provider for {service.name} right now. Please try again or check back later.
+          </Text>
+
+          <Pressable
+            onPress={() => {
+              setSearchAttempts(0);
+              setCreatedBookingId(null);
+              eventBufferRef.current = [];
+              setStep("scheduling");
+            }}
+            style={({ pressed }) => [
+              styles.successBtn,
+              { backgroundColor: colors.primary },
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Feather name="refresh-cw" size={18} color="#fff" />
+            <Text style={styles.successBtnText}>Try Again</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.dismissAll()}
+            style={({ pressed }) => [styles.homeBtn, pressed && { opacity: 0.7 }]}
+          >
+            <Text style={[styles.homeBtnText, { color: colors.mutedForeground }]}>
+              Cancel
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -522,12 +712,21 @@ const styles = StyleSheet.create({
   confirmBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
   successContainer: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   successCard: { width: "100%", borderRadius: 24, borderWidth: 1, padding: 28, alignItems: "center", gap: 16 },
+  pulseRing: {
+    width: 112,
+    height: 112,
+    borderRadius: 56,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   successIcon: { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center" },
-  successTitle: { fontSize: 24, fontFamily: "Inter_700Bold", textAlign: "center" },
+  successTitle: { fontSize: 22, fontFamily: "Inter_700Bold", textAlign: "center" },
   successSubtitle: { fontSize: 14, textAlign: "center", lineHeight: 22 },
   successDetails: { width: "100%" },
   successRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   successRowText: { fontSize: 14, flex: 1 },
+  statusRow: { flexDirection: "row", alignItems: "center", gap: 12, width: "100%" },
+  statusText: { fontSize: 14, flex: 1 },
   successBtn: {
     width: "100%",
     flexDirection: "row",

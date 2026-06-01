@@ -120,6 +120,7 @@ export async function dispatchNextVendor(bookingId: number): Promise<number | nu
     providerId: next.providerId,
   };
 
+  emitToUser(booking.userId, "booking:status", { bookingId, status: "searching" });
   emitToVendor(next.providerId, "NEW_LEAD", leadPayload);
 
   markPendingLead(bookingId, LEAD_TIMEOUT_MS, () => {
