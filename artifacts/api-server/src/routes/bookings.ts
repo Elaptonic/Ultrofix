@@ -275,7 +275,14 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
   res.json(booking);
 });
 
+// TODO: Restrict to admin role once RBAC is introduced (currently "consumer" | "provider" only).
+// For now, require any authenticated session to prevent unauthenticated data exposure.
 router.get("/bookings/:id/dispatch-log", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   if (isNaN(id)) {
