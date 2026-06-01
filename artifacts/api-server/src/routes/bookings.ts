@@ -306,10 +306,12 @@ router.get("/bookings/:id/dispatch-log", async (req, res): Promise<void> => {
     return;
   }
 
-  // Check ownership: must be the customer who made the booking OR the provider assigned to it.
+  // Access control: admin role (support), the booking owner, or the assigned provider.
   const callerId = req.user!.id;
+  const callerRole = (req.user as { role?: string } | undefined)?.role;
+  const isAdmin = callerRole === "admin";
   const isOwner = booking.userId === callerId;
-  const isAssignedProvider = await (async () => {
+  const isAssignedProvider = !isAdmin && !isOwner && await (async () => {
     if (!booking.providerId) return false;
     const [prov] = await db
       .select({ userId: providersTable.userId })
@@ -318,7 +320,7 @@ router.get("/bookings/:id/dispatch-log", async (req, res): Promise<void> => {
     return prov?.userId === callerId;
   })();
 
-  if (!isOwner && !isAssignedProvider) {
+  if (!isAdmin && !isOwner && !isAssignedProvider) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

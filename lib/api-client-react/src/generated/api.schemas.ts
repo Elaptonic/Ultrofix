@@ -131,6 +131,7 @@ export type AuthUserRole =
 export const AuthUserRole = {
   consumer: "consumer",
   provider: "provider",
+  admin: "admin",
 } as const;
 
 export interface AuthUser {

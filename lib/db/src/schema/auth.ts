@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { index, jsonb, pgEnum, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 
-export const userRoleEnum = pgEnum("user_role", ["consumer", "provider"]);
+export const userRoleEnum = pgEnum("user_role", ["consumer", "provider", "admin"]);
 
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
 export const sessionsTable = pgTable(
