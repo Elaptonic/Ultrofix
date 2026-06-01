@@ -67,7 +67,7 @@ export default function HomeScreen() {
         ]}
       >
         <LinearGradient
-          colors={["#2DD4A0", "#6EE7B7", "#A7F3D0"]}
+          colors={["#38BDF8", "#7DD3FC", "#BAE6FD"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 3,
     borderWidth: 1.5,
-    borderColor: "#2DD4A0",
+    borderColor: "#38BDF8",
   },
   notifBadgeText: { color: "#fff", fontSize: 9, fontFamily: "Inter_700Bold" },
   greeting: {

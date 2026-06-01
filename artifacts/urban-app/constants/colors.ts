@@ -1,31 +1,31 @@
 const colors = {
   light: {
-    text: "#1a2e2a",
-    tint: "#2DD4A0",
+    text: "#1a3a4e",
+    tint: "#38BDF8",
 
-    background: "#f0fdf9",
-    foreground: "#1a2e2a",
+    background: "#F0F9FF",
+    foreground: "#1a3a4e",
 
     card: "rgba(255, 255, 255, 0.82)",
-    cardForeground: "#1a2e2a",
+    cardForeground: "#1a3a4e",
 
-    primary: "#2DD4A0",
+    primary: "#38BDF8",
     primaryForeground: "#ffffff",
 
-    secondary: "#065F46",
+    secondary: "#0EA5E9",
     secondaryForeground: "#ffffff",
 
-    muted: "rgba(236, 253, 245, 0.9)",
-    mutedForeground: "#6b9b8a",
+    muted: "rgba(240, 249, 255, 0.9)",
+    mutedForeground: "#6B8FA0",
 
-    accent: "rgba(209, 250, 229, 0.85)",
-    accentForeground: "#059669",
+    accent: "rgba(224, 242, 254, 0.85)",
+    accentForeground: "#0284C7",
 
     destructive: "#ef4444",
     destructiveForeground: "#ffffff",
 
-    border: "rgba(200, 230, 215, 0.5)",
-    input: "rgba(200, 230, 215, 0.5)",
+    border: "rgba(200, 220, 235, 0.5)",
+    input: "rgba(200, 220, 235, 0.5)",
 
     success: "#22c55e",
     warning: "#f59e0b",
@@ -36,9 +36,9 @@ const colors = {
 
     glass: "rgba(255, 255, 255, 0.7)",
     glassBorder: "rgba(255, 255, 255, 0.55)",
-    glassShadow: "rgba(100, 160, 140, 0.12)",
+    glassShadow: "rgba(100, 150, 190, 0.12)",
 
-    overlay: "rgba(6, 95, 70, 0.5)",
+    overlay: "rgba(10, 60, 95, 0.5)",
   },
 
   radius: 16,

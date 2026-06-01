@@ -137,7 +137,7 @@ export default function ServiceDetailScreen() {
               <Feather name="clock" size={12} color={colors.primary} />
               <Text style={[styles.tagText, { color: colors.primary }]}>{service.duration}</Text>
             </View>
-            <View style={[styles.tag, { backgroundColor: "#d1fae5" }]}>
+            <View style={[styles.tag, { backgroundColor: "#E0F2FE" }]}>
               <Feather name="check-circle" size={12} color="#10b981" />
               <Text style={[styles.tagText, { color: "#10b981" }]}>Verified Pros</Text>
             </View>
@@ -184,7 +184,7 @@ export default function ServiceDetailScreen() {
                 {displayProviders.map((provider) => {
                   const isSelected = effectiveProviderId === provider.id;
                   const avatarColors = [
-                    "#2DD4A0", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899",
+                    "#38BDF8", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899",
                   ];
                   const avatarColor = avatarColors[provider.id % avatarColors.length];
                   return (

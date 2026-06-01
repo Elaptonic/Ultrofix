@@ -156,13 +156,13 @@ export default function NotificationsScreen() {
               <View
                 style={[
                   styles.notifIcon,
-                  { backgroundColor: (notif.iconColor || "#2DD4A0") + "22" },
+                  { backgroundColor: (notif.iconColor || "#38BDF8") + "22" },
                 ]}
               >
                 <Feather
                   name={(notif.icon || "bell") as any}
                   size={20}
-                  color={notif.iconColor || "#2DD4A0"}
+                  color={notif.iconColor || "#38BDF8"}
                 />
               </View>
               <View style={styles.notifContent}>

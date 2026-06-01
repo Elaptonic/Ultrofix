@@ -30,7 +30,7 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }>
   accepted: { bg: "#e0f2fe22", text: "#0ea5e9", label: "Accepted" },
   in_progress: { bg: "#fef9c322", text: "#eab308", label: "In Progress" },
   upcoming: { bg: "#dbeafe22", text: "#3b82f6", label: "Upcoming" },
-  completed: { bg: "#d1fae522", text: "#10b981", label: "Completed" },
+  completed: { bg: "#E0F2FE22", text: "#10b981", label: "Completed" },
   cancelled: { bg: "#fee2e222", text: "#ef4444", label: "Cancelled" },
 };
 

@@ -13,7 +13,7 @@ export function ProviderCard({ provider }: ProviderCardProps) {
   const colors = useColors();
 
   const avatarColors = [
-    "#2DD4A0", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899",
+    "#38BDF8", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899",
   ];
   const avatarColor = avatarColors[provider.id % avatarColors.length];
 
@@ -31,7 +31,7 @@ export function ProviderCard({ provider }: ProviderCardProps) {
           </Text>
         </View>
         {provider.verified && (
-          <View style={[styles.verifiedBadge, { backgroundColor: "#d1fae5" }]}>
+          <View style={[styles.verifiedBadge, { backgroundColor: "#E0F2FE" }]}>
             <Feather name="check-circle" size={10} color="#10b981" />
             <Text style={[styles.verifiedText, { color: "#10b981" }]}>Verified</Text>
           </View>

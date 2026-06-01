@@ -19,7 +19,7 @@ import type { BreakdownEntry } from "@/hooks/useProviderStats";
 const PERIODS = ["Week", "Month", "Year"] as const;
 type Period = (typeof PERIODS)[number];
 
-const BAR_COLORS = ["#2DD4A0", "#6EE7B7", "#A7F3D0", "#D1FAE5", "#E6FFFA", "#F0FDF9", "#B2F5EA"];
+const BAR_COLORS = ["#38BDF8", "#7DD3FC", "#BAE6FD", "#E0F2FE", "#F0F9FF", "#F0F9FF", "#BAE6FD"];
 
 function fmtINR(n: number): string {
   if (n >= 100_000) return `₹${(n / 100_000).toFixed(1)}L`;

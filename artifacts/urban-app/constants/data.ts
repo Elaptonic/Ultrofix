@@ -92,7 +92,7 @@ export const CATEGORIES: Category[] = [
     name: "Pest Control",
     icon: "shield",
     color: "#10b981",
-    bgColor: "#d1fae5",
+    bgColor: "#E0F2FE",
     serviceCount: 5,
   },
   {

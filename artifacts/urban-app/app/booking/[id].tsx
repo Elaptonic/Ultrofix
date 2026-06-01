@@ -215,7 +215,7 @@ export default function BookingScreen() {
     return (
       <View style={[styles.successContainer, { backgroundColor: colors.background }]}>
         <View style={[styles.successCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={[styles.successIcon, { backgroundColor: "#d1fae5" }]}>
+          <View style={[styles.successIcon, { backgroundColor: "#E0F2FE" }]}>
             <Feather name="check-circle" size={48} color="#10b981" />
           </View>
           <Text style={[styles.successTitle, { color: colors.foreground }]}>
