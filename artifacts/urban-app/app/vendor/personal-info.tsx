@@ -38,7 +38,7 @@ export default function PersonalInfoScreen() {
     }
     if (user) {
       setEmail(user.email ?? "");
-      setPhone(user.phone ?? "");
+      setPhone(user.phoneNumber ?? "");
     }
   }, [profile, user]);
 
