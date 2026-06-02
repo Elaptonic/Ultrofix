@@ -1,15 +1,43 @@
 import { BlurView } from "expo-blur";
 import { Icon as Feather } from "@/components/Icon";
-import { Tabs } from "expo-router";
-import React from "react";
+import { Tabs, useRouter } from "expo-router";
+import React, { useEffect, useRef } from "react";
 import { Platform, StyleSheet, View } from "react-native";
+import * as SecureStore from "expo-secure-store";
 
 import { useColors } from "@/hooks/useColors";
+import { useAuth, AUTH_TOKEN_KEY, getApiBaseUrl } from "@/context/auth";
 
 export default function VendorTabLayout() {
   const colors = useColors();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
+  const router = useRouter();
+  const { user } = useAuth();
+  const checked = useRef(false);
+
+  useEffect(() => {
+    if (!user || checked.current) return;
+    checked.current = true;
+
+    (async () => {
+      try {
+        const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+        if (!token) return;
+        const res = await fetch(`${getApiBaseUrl()}/api/subscriptions/status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (!data.subscription || data.subscription.status !== "active") {
+            router.replace("/vendor/subscribe" as any);
+          }
+        }
+      } catch {
+        // network failure — let the vendor through rather than blocking access
+      }
+    })();
+  }, [user]);
 
   return (
     <Tabs

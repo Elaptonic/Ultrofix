@@ -78,8 +78,9 @@ describe("getRankedProviders", () => {
     const plumber = makeProvider({ id: 1, category: "plumbing" });
 
     mockSelect
-      .mockReturnValueOnce(makeChain([]))
-      .mockReturnValueOnce(makeChain([plumber]));
+      .mockReturnValueOnce(makeChain([]))                       // busy bookings
+      .mockReturnValueOnce(makeChain([plumber]))                 // candidates
+      .mockReturnValueOnce(makeChain([{ providerId: 1 }]));     // active subscriptions
 
     const result = await getRankedProviders("plumbing", "2025-06-01", "10:00");
 
@@ -90,8 +91,9 @@ describe("getRankedProviders", () => {
 
   it("encodes the service category inside the DB query predicate", async () => {
     mockSelect
-      .mockReturnValueOnce(makeChain([]))
-      .mockReturnValueOnce(makeChain([]));
+      .mockReturnValueOnce(makeChain([]))   // busy bookings
+      .mockReturnValueOnce(makeChain([]))   // candidates
+      .mockReturnValueOnce(makeChain([]));  // active subscriptions
 
     await getRankedProviders("electrical", "2025-06-01", "10:00");
 
@@ -104,8 +106,9 @@ describe("getRankedProviders", () => {
     const freeProvider = makeProvider({ id: 11, category: "cleaning" });
 
     mockSelect
-      .mockReturnValueOnce(makeChain([{ providerId: 10 }]))
-      .mockReturnValueOnce(makeChain([busyProvider, freeProvider]));
+      .mockReturnValueOnce(makeChain([{ providerId: 10 }]))                          // busy bookings
+      .mockReturnValueOnce(makeChain([busyProvider, freeProvider]))                   // candidates
+      .mockReturnValueOnce(makeChain([{ providerId: 10 }, { providerId: 11 }]));     // active subscriptions
 
     const result = await getRankedProviders("cleaning", "2025-06-01", "14:00");
 
@@ -119,8 +122,9 @@ describe("getRankedProviders", () => {
     const p2 = makeProvider({ id: 2, category: "plumbing" });
 
     mockSelect
-      .mockReturnValueOnce(makeChain([]))
-      .mockReturnValueOnce(makeChain([p1, p2]));
+      .mockReturnValueOnce(makeChain([]))                                         // busy bookings
+      .mockReturnValueOnce(makeChain([p1, p2]))                                   // candidates
+      .mockReturnValueOnce(makeChain([{ providerId: 1 }, { providerId: 2 }]));   // active subscriptions
 
     const result = await getRankedProviders("plumbing", "2025-06-01", "09:00");
 
@@ -133,8 +137,9 @@ describe("getRankedProviders", () => {
     const mid = makeProvider({ id: 3, jobsCompleted: 100, rating: 4.8, category: "plumbing" });
 
     mockSelect
-      .mockReturnValueOnce(makeChain([]))
-      .mockReturnValueOnce(makeChain([senior, junior, mid]));
+      .mockReturnValueOnce(makeChain([]))                                                             // busy bookings
+      .mockReturnValueOnce(makeChain([senior, junior, mid]))                                          // candidates
+      .mockReturnValueOnce(makeChain([{ providerId: 1 }, { providerId: 2 }, { providerId: 3 }]));   // active subscriptions
 
     const result = await getRankedProviders("plumbing", "2025-06-01", "10:00");
 
@@ -145,8 +150,9 @@ describe("getRankedProviders", () => {
 
   it("returns an empty array when no providers are online in the category", async () => {
     mockSelect
-      .mockReturnValueOnce(makeChain([]))
-      .mockReturnValueOnce(makeChain([]));
+      .mockReturnValueOnce(makeChain([]))   // busy bookings
+      .mockReturnValueOnce(makeChain([]))   // candidates
+      .mockReturnValueOnce(makeChain([]));  // active subscriptions
 
     const result = await getRankedProviders("plumbing", "2025-06-01", "10:00");
 
@@ -158,8 +164,9 @@ describe("getRankedProviders", () => {
     const p2 = makeProvider({ id: 6, category: "plumbing" });
 
     mockSelect
-      .mockReturnValueOnce(makeChain([{ providerId: 5 }, { providerId: 6 }]))
-      .mockReturnValueOnce(makeChain([p1, p2]));
+      .mockReturnValueOnce(makeChain([{ providerId: 5 }, { providerId: 6 }]))                // busy bookings
+      .mockReturnValueOnce(makeChain([p1, p2]))                                               // candidates
+      .mockReturnValueOnce(makeChain([{ providerId: 5 }, { providerId: 6 }]));               // active subscriptions
 
     const result = await getRankedProviders("plumbing", "2025-06-01", "10:00");
 

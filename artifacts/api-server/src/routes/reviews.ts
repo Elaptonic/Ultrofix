@@ -10,14 +10,13 @@ router.post("/reviews", async (req, res): Promise<void> => {
     return;
   }
 
-  const { bookingId, providerId, rating, comment } = req.body ?? {};
+  const { bookingId, rating, comment } = req.body ?? {};
 
   if (
     !Number.isInteger(bookingId) || bookingId <= 0 ||
-    !Number.isInteger(providerId) || providerId <= 0 ||
     !Number.isInteger(rating) || rating < 1 || rating > 5
   ) {
-    res.status(400).json({ error: "Invalid request: bookingId, providerId (integers) and rating (1–5) are required" });
+    res.status(400).json({ error: "Invalid request: bookingId (integer) and rating (1–5) are required" });
     return;
   }
 
@@ -40,6 +39,8 @@ router.post("/reviews", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Can only review completed bookings" });
     return;
   }
+
+  const providerId = booking.providerId;
 
   const [existing] = await db
     .select({ id: reviewsTable.id })
