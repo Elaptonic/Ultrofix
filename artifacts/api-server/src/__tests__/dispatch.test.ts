@@ -57,7 +57,7 @@ vi.mock("../lib/timers", () => ({
   clearPendingLead: (...args: unknown[]) => mockClearPendingLead(...args),
 }));
 
-import { dispatchNextVendor, markVendorAccepted, markVendorRejected, seedDispatchQueue } from "../lib/dispatch";
+import { dispatchNextVendor, handleVendorOffline, markVendorAccepted, markVendorRejected, seedDispatchQueue } from "../lib/dispatch";
 
 function makeChain(result: unknown) {
   const p = Promise.resolve(result);
@@ -447,5 +447,57 @@ describe("seedDispatchQueue", () => {
     await seedDispatchQueue(5, "electrical", "2025-07-15", "14:30");
 
     expect(mockGetRankedProviders).toHaveBeenCalledWith("electrical", "2025-07-15", "14:30");
+  });
+});
+
+describe("handleVendorOffline", () => {
+  it("does nothing when the vendor has no dispatched attempt (already resolved or never dispatched)", async () => {
+    mockUpdate.mockReturnValueOnce(makeChain([]));
+
+    await handleVendorOffline(42);
+
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    expect(mockClearPendingLead).not.toHaveBeenCalled();
+    expect(mockLogger.info).not.toHaveBeenCalled();
+  });
+
+  it("marks the dispatched attempt timed_out and cascades dispatch when the vendor disconnects", async () => {
+    const timedOutAttempt = makeAttempt({ id: 99, bookingId: 1, providerId: 42, status: "timed_out" });
+
+    mockUpdate.mockReturnValueOnce(makeChain([timedOutAttempt]));
+    mockSelect.mockReturnValue(makeChain([]));
+
+    await handleVendorOffline(42);
+
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    expect(mockClearPendingLead).toHaveBeenCalledWith(1);
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ bookingId: 1, providerId: 42 }),
+      "handleVendorOffline: attempt timed_out due to disconnect, cascading dispatch",
+    );
+  });
+
+  it("does not clear the timer or cascade when the attempt was already accepted before the update ran (race condition)", async () => {
+    mockUpdate.mockReturnValueOnce(makeChain([]));
+
+    await handleVendorOffline(42);
+
+    expect(mockClearPendingLead).not.toHaveBeenCalled();
+    expect(mockLogger.info).not.toHaveBeenCalled();
+  });
+
+  it("cascades each booking independently when the vendor has multiple in-flight attempts", async () => {
+    const attempt1 = makeAttempt({ id: 10, bookingId: 1, providerId: 42, status: "timed_out" });
+    const attempt2 = makeAttempt({ id: 11, bookingId: 2, providerId: 42, status: "timed_out" });
+
+    mockUpdate.mockReturnValueOnce(makeChain([attempt1, attempt2]));
+    mockSelect.mockReturnValue(makeChain([]));
+
+    await handleVendorOffline(42);
+
+    expect(mockClearPendingLead).toHaveBeenCalledTimes(2);
+    expect(mockClearPendingLead).toHaveBeenCalledWith(1);
+    expect(mockClearPendingLead).toHaveBeenCalledWith(2);
+    expect(mockLogger.info).toHaveBeenCalledTimes(2);
   });
 });

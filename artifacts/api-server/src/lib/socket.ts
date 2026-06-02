@@ -5,7 +5,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { logger } from "./logger";
 import { setIO, getIO, emitToUser, emitToVendor } from "./io-instance";
 import { clearPendingLead, markPendingLead } from "./timers";
-import { dispatchNextVendor, markVendorAccepted, markVendorRejected } from "./dispatch";
+import { dispatchNextVendor, handleVendorOffline, markVendorAccepted, markVendorRejected } from "./dispatch";
 
 export { emitToUser, emitToVendor, getIO, clearPendingLead, markPendingLead };
 
@@ -180,6 +180,9 @@ export function initSocket(server: HttpServer) {
         if (socketId === socket.id) {
           vendorSockets.delete(providerId);
           logger.info({ providerId, socketId: socket.id }, "Vendor disconnected");
+          handleVendorOffline(providerId).catch((err) => {
+            logger.error({ err, providerId }, "handleVendorOffline failed on disconnect");
+          });
           break;
         }
       }

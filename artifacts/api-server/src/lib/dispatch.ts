@@ -220,6 +220,32 @@ async function checkVendorAvailability(
   return conflicts.length === 0;
 }
 
+export async function handleVendorOffline(providerId: number): Promise<void> {
+  const timedOut = await db
+    .update(leadDispatchAttemptsTable)
+    .set({ status: "timed_out", skipReason: "vendor_offline", updatedAt: new Date() })
+    .where(
+      and(
+        eq(leadDispatchAttemptsTable.providerId, providerId),
+        eq(leadDispatchAttemptsTable.status, "dispatched"),
+      ),
+    )
+    .returning();
+
+  for (const attempt of timedOut) {
+    clearPendingLead(attempt.bookingId);
+
+    logger.info(
+      { bookingId: attempt.bookingId, providerId },
+      "handleVendorOffline: attempt timed_out due to disconnect, cascading dispatch",
+    );
+
+    dispatchNextVendor(attempt.bookingId).catch((err) => {
+      logger.error({ err, bookingId: attempt.bookingId }, "handleVendorOffline: dispatchNextVendor failed");
+    });
+  }
+}
+
 export async function seedDispatchQueue(
   bookingId: number,
   serviceCategory: string,
