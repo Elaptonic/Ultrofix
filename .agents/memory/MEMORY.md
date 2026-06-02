@@ -1,0 +1,3 @@
+- [Zod import in API server](zod-api-server.md) — use inline validation or @workspace/api-zod; zod/v4 can't be resolved by esbuild bundler
+- [Dispatch subscription gate](dispatch-subscription-gate.md) — getRankedProviders filters unsubscribed vendors; new providers get no leads until they subscribe
+- [expo-clipboard absent](expo-packages.md) — expo-clipboard not installed in urban-app; use React state for copy feedback instead

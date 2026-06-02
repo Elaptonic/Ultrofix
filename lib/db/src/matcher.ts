@@ -1,6 +1,6 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, gt, inArray } from "drizzle-orm";
 import { db } from "./db";
-import { bookingsTable, providersTable } from "./schema";
+import { bookingsTable, providersTable, vendorSubscriptionsTable } from "./schema";
 
 export interface NearestProviderResult {
   success: true;
@@ -43,8 +43,22 @@ export async function getRankedProviders(
       ),
     );
 
-  const available =
+  const now = new Date();
+  const activeSubs = await db
+    .select({ providerId: vendorSubscriptionsTable.providerId })
+    .from(vendorSubscriptionsTable)
+    .where(
+      and(
+        eq(vendorSubscriptionsTable.status, "active"),
+        gt(vendorSubscriptionsTable.expiresAt, now),
+      ),
+    );
+  const subscribedIds = new Set(activeSubs.map((s) => s.providerId));
+
+  const notBusy =
     busyIds.length > 0 ? candidates.filter((p) => !busyIds.includes(p.id)) : candidates;
+
+  const available = notBusy.filter((p) => subscribedIds.has(p.id));
 
   available.sort((a, b) => {
     if (b.jobsCompleted !== a.jobsCompleted) return b.jobsCompleted - a.jobsCompleted;

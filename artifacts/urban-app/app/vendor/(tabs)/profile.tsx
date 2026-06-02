@@ -37,18 +37,18 @@ export default function VendorProfileScreen() {
 
   const menuSections: MenuRow[][] = [
     [
-      { icon: "user", label: "Personal Info", sub: "Name, phone, email" },
-      { icon: "map-pin", label: "Service Areas", sub: "Manage your service zones" },
-      { icon: "tool", label: "Skills & Services", sub: "Cleaning, plumbing, electrical…" },
+      { icon: "user", label: "Personal Info", sub: "Name, phone, email", onPress: () => router.push("/vendor/personal-info") },
+      { icon: "map-pin", label: "Service Areas", sub: "Manage your service zones", onPress: () => router.push("/vendor/service-areas") },
+      { icon: "tool", label: "Skills & Services", sub: "Cleaning, plumbing, electrical…", onPress: () => router.push("/vendor/skills") },
     ],
     [
-      { icon: "star", label: "Reviews & Ratings", sub: stats?.reviewCount ? `${stats.avgRating} · ${stats.reviewCount} reviews` : "No reviews yet" },
-      { icon: "file-text", label: "Documents", sub: "ID, certificates, background check" },
-      { icon: "bell", label: "Notifications", sub: "Job alerts, payment updates" },
+      { icon: "star", label: "Reviews & Ratings", sub: stats?.reviewCount ? `${stats.avgRating} · ${stats.reviewCount} reviews` : "No reviews yet", onPress: () => router.push("/vendor/vendor-reviews") },
+      { icon: "file-text", label: "Documents", sub: "ID, certificates, background check", onPress: () => router.push("/vendor/documents") },
+      { icon: "bell", label: "Notifications", sub: "Job alerts, payment updates", onPress: () => router.push("/vendor/notifications-settings") },
     ],
     [
-      { icon: "shield", label: "Privacy & Security" },
-      { icon: "help-circle", label: "Help & Support" },
+      { icon: "zap", label: "Pro Subscription", sub: "₹999/month · Priority leads", color: "#f97316", onPress: () => router.push("/vendor/subscribe") },
+      { icon: "help-circle", label: "Help & Support", onPress: () => router.push("/help") },
       { icon: "refresh-cw", label: "Switch to Consumer", sub: "Book services instead", color: colors.primary, onPress: switchToConsumer },
     ],
     [

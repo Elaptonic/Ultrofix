@@ -4,4 +4,6 @@ export * from "./lead-dispatch-attempts";
 export * from "./notifications";
 export * from "./profiles";
 export * from "./providers";
+export * from "./reviews";
 export * from "./services";
+export * from "./vendor-subscriptions";
