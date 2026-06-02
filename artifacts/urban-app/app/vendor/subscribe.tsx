@@ -63,7 +63,7 @@ export default function SubscribeScreen({ onSuccess }: SubscribeScreenProps) {
         if (onSuccess) {
           onSuccess();
         } else {
-          router.back();
+          router.replace("/vendor/(tabs)/dashboard" as any);
         }
       }, 1500);
     } catch {
@@ -99,7 +99,7 @@ export default function SubscribeScreen({ onSuccess }: SubscribeScreenProps) {
           },
         ]}
       >
-        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
+        <Pressable onPress={() => router.replace("/vendor/(tabs)/dashboard" as any)} style={styles.backBtn} hitSlop={12}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Pro Subscription</Text>
