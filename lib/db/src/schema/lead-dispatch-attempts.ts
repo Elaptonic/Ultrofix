@@ -1,4 +1,5 @@
-import { integer, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { integer, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -15,7 +16,11 @@ export const leadDispatchAttemptsTable = pgTable("lead_dispatch_attempts", {
   skipReason: text("skip_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("lead_dispatch_attempts_one_accepted_per_booking_idx")
+    .on(table.bookingId)
+    .where(sql`${table.status} = 'accepted'`),
+]);
 
 export const insertLeadDispatchAttemptSchema = createInsertSchema(leadDispatchAttemptsTable).omit({
   id: true,

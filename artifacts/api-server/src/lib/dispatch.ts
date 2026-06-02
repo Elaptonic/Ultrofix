@@ -153,33 +153,52 @@ export async function markVendorRejected(bookingId: number, providerId: number):
 }
 
 export async function markVendorAccepted(bookingId: number, providerId: number): Promise<boolean> {
-  const result = await db
-    .update(leadDispatchAttemptsTable)
-    .set({ status: "accepted", updatedAt: new Date() })
-    .where(
-      and(
-        eq(leadDispatchAttemptsTable.bookingId, bookingId),
-        eq(leadDispatchAttemptsTable.providerId, providerId),
-        eq(leadDispatchAttemptsTable.status, "dispatched"),
-      ),
-    )
-    .returning();
+  try {
+    return await db.transaction(async (tx) => {
+      const result = await tx
+        .update(leadDispatchAttemptsTable)
+        .set({ status: "accepted", updatedAt: new Date() })
+        .where(
+          and(
+            eq(leadDispatchAttemptsTable.bookingId, bookingId),
+            eq(leadDispatchAttemptsTable.providerId, providerId),
+            eq(leadDispatchAttemptsTable.status, "dispatched"),
+          ),
+        )
+        .returning();
 
-  if (result.length === 0) {
-    return false;
+      if (result.length === 0) {
+        return false;
+      }
+
+      await tx
+        .update(leadDispatchAttemptsTable)
+        .set({ status: "skipped", skipReason: "booking_accepted_by_other", updatedAt: new Date() })
+        .where(
+          and(
+            eq(leadDispatchAttemptsTable.bookingId, bookingId),
+            eq(leadDispatchAttemptsTable.status, "pending"),
+          ),
+        );
+
+      return true;
+    });
+  } catch (err: unknown) {
+    if (isUniqueViolation(err)) {
+      logger.info({ bookingId, providerId }, "markVendorAccepted: unique constraint prevented double-accept");
+      return false;
+    }
+    throw err;
   }
+}
 
-  await db
-    .update(leadDispatchAttemptsTable)
-    .set({ status: "skipped", skipReason: "booking_accepted_by_other", updatedAt: new Date() })
-    .where(
-      and(
-        eq(leadDispatchAttemptsTable.bookingId, bookingId),
-        eq(leadDispatchAttemptsTable.status, "pending"),
-      ),
-    );
-
-  return true;
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code: string }).code === "23505"
+  );
 }
 
 async function checkVendorAvailability(

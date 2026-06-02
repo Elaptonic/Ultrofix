@@ -4,6 +4,7 @@ const {
   mockSelect,
   mockUpdate,
   mockInsert,
+  mockTransaction,
   mockGetRankedProviders,
   mockEmitToUser,
   mockEmitToVendor,
@@ -14,6 +15,7 @@ const {
   mockSelect: vi.fn(),
   mockUpdate: vi.fn(),
   mockInsert: vi.fn(),
+  mockTransaction: vi.fn(),
   mockGetRankedProviders: vi.fn(),
   mockEmitToUser: vi.fn(),
   mockEmitToVendor: vi.fn(),
@@ -32,6 +34,7 @@ vi.mock("@workspace/db", () => ({
     select: (...args: unknown[]) => mockSelect(...args),
     update: (...args: unknown[]) => mockUpdate(...args),
     insert: (...args: unknown[]) => mockInsert(...args),
+    transaction: (...args: unknown[]) => mockTransaction(...args),
   },
   bookingsTable: { id: "id", status: "status", providerId: "providerId", date: "date", time: "time" },
   leadDispatchAttemptsTable: { id: "id", bookingId: "bookingId", status: "status", rank: "rank" },
@@ -137,6 +140,9 @@ function makeProvider(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockTransaction.mockImplementation((cb: (tx: unknown) => unknown) =>
+    cb({ update: (...args: unknown[]) => mockUpdate(...args) }),
+  );
 });
 
 describe("dispatchNextVendor", () => {
@@ -325,27 +331,25 @@ describe("dispatchNextVendor", () => {
 
 describe("markVendorAccepted", () => {
   it("returns false when no dispatched row is found for that booking + vendor", async () => {
-    const returningChain = makeChain([]);
-    mockUpdate.mockReturnValueOnce(returningChain);
+    mockUpdate.mockReturnValueOnce(makeChain([]));
 
     const result = await markVendorAccepted(1, 42);
 
     expect(result).toBe(false);
+    expect(mockTransaction).toHaveBeenCalledTimes(1);
   });
 
   it("returns true and flips all remaining pending rows to skipped", async () => {
     const acceptedAttempt = makeAttempt({ status: "accepted" });
 
-    const firstUpdateChain = makeChain([acceptedAttempt]);
-    const secondUpdateChain = makeChain(undefined);
-
     mockUpdate
-      .mockReturnValueOnce(firstUpdateChain)
-      .mockReturnValueOnce(secondUpdateChain);
+      .mockReturnValueOnce(makeChain([acceptedAttempt]))
+      .mockReturnValueOnce(makeChain(undefined));
 
     const result = await markVendorAccepted(1, 42);
 
     expect(result).toBe(true);
+    expect(mockTransaction).toHaveBeenCalledTimes(1);
     expect(mockUpdate).toHaveBeenCalledTimes(2);
   });
 
@@ -354,7 +358,35 @@ describe("markVendorAccepted", () => {
 
     await markVendorAccepted(1, 42);
 
+    expect(mockTransaction).toHaveBeenCalledTimes(1);
     expect(mockUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("a second accept for the same booking returns false when the row is already taken (race condition loser)", async () => {
+    mockUpdate.mockReturnValueOnce(makeChain([]));
+
+    const result = await markVendorAccepted(1, 99);
+
+    expect(result).toBe(false);
+    expect(mockTransaction).toHaveBeenCalledTimes(1);
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns false when the DB unique constraint fires (two concurrent accepts for the same booking)", async () => {
+    const uniqueViolation = Object.assign(new Error("duplicate key"), { code: "23505" });
+    mockTransaction.mockRejectedValueOnce(uniqueViolation);
+
+    const result = await markVendorAccepted(1, 42);
+
+    expect(result).toBe(false);
+    expect(mockTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-throws unexpected errors from the transaction", async () => {
+    const unexpected = new Error("connection lost");
+    mockTransaction.mockRejectedValueOnce(unexpected);
+
+    await expect(markVendorAccepted(1, 42)).rejects.toThrow("connection lost");
   });
 });
 
