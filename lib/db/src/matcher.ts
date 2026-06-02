@@ -58,14 +58,17 @@ export async function getRankedProviders(
   const notBusy =
     busyIds.length > 0 ? candidates.filter((p) => !busyIds.includes(p.id)) : candidates;
 
-  const available = notBusy.filter((p) => subscribedIds.has(p.id));
-
-  available.sort((a, b) => {
+  // Subscribed vendors get priority; unsubscribed vendors are fallback so
+  // consumers always receive service when at least one vendor is online.
+  notBusy.sort((a, b) => {
+    const aSubscribed = subscribedIds.has(a.id) ? 1 : 0;
+    const bSubscribed = subscribedIds.has(b.id) ? 1 : 0;
+    if (bSubscribed !== aSubscribed) return bSubscribed - aSubscribed;
     if (b.jobsCompleted !== a.jobsCompleted) return b.jobsCompleted - a.jobsCompleted;
     return b.rating - a.rating;
   });
 
-  return available;
+  return notBusy;
 }
 
 export async function assignNearestProvider(
