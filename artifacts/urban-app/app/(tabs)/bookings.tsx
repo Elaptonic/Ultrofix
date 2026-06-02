@@ -2,7 +2,7 @@ import { Icon as Feather } from "@/components/Icon";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import * as SecureStore from "expo-secure-store";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -27,7 +27,6 @@ type Tab = typeof TABS[number];
 
 interface ReviewSheet {
   bookingId: number;
-  providerId: number;
   serviceName?: string;
 }
 
@@ -74,6 +73,45 @@ export default function BookingsScreen() {
   const [reviewComment, setReviewComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const autoPrompted = useRef(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+        if (!token) return;
+        const res = await fetch(`${getApiBaseUrl()}/api/reviews`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data: { bookingId: number }[] = await res.json();
+          setReviewedIds(new Set(data.map((r) => r.bookingId)));
+        }
+      } catch {
+        // leave reviewedIds empty — optimistic, server will reject duplicates anyway
+      }
+    })();
+  }, []);
+
+  const completedBookings = (bookings ?? []).filter(
+    (b) => (b as any).status === "completed",
+  );
+
+  useEffect(() => {
+    if (activeTab !== "Completed" || autoPrompted.current) return;
+    if (completedBookings.length === 0) return;
+    const first = completedBookings.find((b) => !reviewedIds.has((b as any).id));
+    if (!first) return;
+    autoPrompted.current = true;
+    const b = first as any;
+    setTimeout(() => {
+      if (Platform.OS !== "web") Haptics.selectionAsync();
+      setStarRating(0);
+      setReviewComment("");
+      setSubmitError(null);
+      setReviewSheet({ bookingId: b.id, serviceName: b.serviceName });
+    }, 400);
+  }, [activeTab, completedBookings, reviewedIds]);
 
   const filteredBookings = (bookings ?? []).filter((b) => {
     const s = (b as any).status as string;
@@ -87,11 +125,7 @@ export default function BookingsScreen() {
     setStarRating(0);
     setReviewComment("");
     setSubmitError(null);
-    setReviewSheet({
-      bookingId: booking.id,
-      providerId: booking.providerId,
-      serviceName: booking.serviceName,
-    });
+    setReviewSheet({ bookingId: booking.id, serviceName: booking.serviceName });
   };
 
   const submitReview = async () => {
@@ -109,7 +143,6 @@ export default function BookingsScreen() {
         },
         body: JSON.stringify({
           bookingId: reviewSheet.bookingId,
-          providerId: reviewSheet.providerId,
           rating: starRating,
           comment: reviewComment.trim() || undefined,
         }),
@@ -212,8 +245,7 @@ export default function BookingsScreen() {
         ) : (
           filteredBookings.map((booking) => {
             const b = booking as any;
-            const canReview =
-              activeTab === "Completed" && !reviewedIds.has(b.id);
+            const canReview = activeTab === "Completed" && !reviewedIds.has(b.id);
             return (
               <View key={b.id} style={styles.bookingWrap}>
                 <BookingCard booking={booking} />

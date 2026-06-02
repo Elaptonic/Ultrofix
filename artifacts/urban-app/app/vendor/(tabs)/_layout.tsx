@@ -29,7 +29,7 @@ export default function VendorTabLayout() {
         });
         if (res.ok) {
           const data = await res.json();
-          if (!data.subscription || data.subscription.status !== "active") {
+          if (!data.active) {
             router.replace("/vendor/subscribe" as any);
           }
         }

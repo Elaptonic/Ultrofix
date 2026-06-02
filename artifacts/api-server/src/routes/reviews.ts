@@ -76,6 +76,19 @@ router.post("/reviews", async (req, res): Promise<void> => {
   res.status(201).json(review);
 });
 
+router.get("/reviews", async (req, res): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const reviews = await db
+    .select()
+    .from(reviewsTable)
+    .where(eq(reviewsTable.consumerId, req.user.id))
+    .orderBy(reviewsTable.createdAt);
+  res.json(reviews);
+});
+
 router.get("/reviews/:providerId", async (req, res): Promise<void> => {
   const providerId = parseInt(req.params.providerId ?? "", 10);
   if (isNaN(providerId)) {
