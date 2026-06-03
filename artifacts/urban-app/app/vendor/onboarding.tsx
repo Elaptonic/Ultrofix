@@ -26,20 +26,26 @@ const SERVICE_CATEGORIES = [
   { id: "electrical", label: "Electrical", icon: "zap" },
   { id: "carpentry", label: "Carpentry", icon: "tool" },
   { id: "painting", label: "Painting", icon: "edit-3" },
-  { id: "pest-control", label: "Pest Control", icon: "shield" },
-  { id: "appliance-repair", label: "Appliance Repair", icon: "cpu" },
-  { id: "salon", label: "Salon & Beauty", icon: "scissors" },
+  { id: "pest", label: "Pest Control", icon: "shield" },
+  { id: "appliances", label: "Appliance Repair", icon: "cpu" },
+  { id: "salon-women", label: "Salon for Women", icon: "scissors" },
+  { id: "salon-men", label: "Salon for Men", icon: "user" },
+  { id: "massage", label: "Massage & Spa", icon: "heart" },
+  { id: "water-purifier", label: "Water Purifier", icon: "droplet" },
 ] as const;
 
 const SKILL_SUGGESTIONS: Record<string, string[]> = {
   cleaning: ["Deep Cleaning", "Bathroom Cleaning", "Kitchen Cleaning", "Sofa Cleaning", "Carpet Cleaning"],
-  plumbing: ["Pipe Repair", "Tap Fixing", "Drain Unblocking", "Water Heater", "Toilet Repair"],
+  plumbing: ["Pipe Repair", "Tap Fixing", "Drain Unblocking", "Geyser Repair", "Toilet Repair"],
   electrical: ["Wiring", "Fan Installation", "Switch Repair", "MCB Fitting", "Light Installation"],
-  carpentry: ["Furniture Assembly", "Door Repair", "Shelf Installation", "Cabinet Making", "Wood Polish"],
-  painting: ["Wall Painting", "Texture Painting", "Waterproofing", "Exterior Painting", "POP Work"],
-  "pest-control": ["Cockroach Treatment", "Termite Treatment", "Rodent Control", "Bed Bug Treatment", "Mosquito Spray"],
-  "appliance-repair": ["AC Repair", "Washing Machine", "Refrigerator", "Microwave Repair", "TV Repair"],
-  salon: ["Haircut", "Hair Colour", "Facial", "Waxing", "Makeup"],
+  carpentry: ["Furniture Assembly", "Door Repair", "Wardrobe Installation", "Bed Repair", "Wood Polish"],
+  painting: ["Wall Painting", "Texture Painting", "Waterproofing", "Exterior Painting", "Whitewash"],
+  pest: ["Cockroach Treatment", "Termite Treatment", "Rodent Control", "Bed Bug Treatment", "Mosquito Spray"],
+  appliances: ["AC Repair", "Washing Machine", "Refrigerator", "Microwave Repair", "TV Repair"],
+  "salon-women": ["Haircut & Styling", "Facial", "Waxing", "Bridal Makeup", "Hair Color"],
+  "salon-men": ["Haircut", "Beard Grooming", "Facial", "Head Massage", "Hair Color"],
+  massage: ["Swedish Massage", "Deep Tissue", "Foot Reflexology", "Head Massage", "Couple Massage"],
+  "water-purifier": ["RO Installation", "RO Repair", "Filter Change", "UV Purifier Service", "Water Softener"],
 };
 
 const CITY_SUGGESTIONS = [
